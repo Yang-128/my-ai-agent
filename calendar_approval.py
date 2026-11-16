@@ -1,7 +1,8 @@
 import json
+import re
 import threading
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from runtime import DATA_DIR
@@ -9,6 +10,54 @@ from runtime import DATA_DIR
 PENDING_FILE = DATA_DIR / "pending_calendar_events.json"
 _LOCK = threading.Lock()
 _EXPIRY = timedelta(minutes=30)
+
+
+def _normalize_all_day_date(value, field_name):
+    """Accept common human-readable dates and normalize them to YYYY-MM-DD."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+
+    try:
+        return date.fromisoformat(raw).isoformat()
+    except ValueError:
+        pass
+
+    cleaned = re.sub(
+        r"(?i)(\d)(st|nd|rd|th)\b",
+        r"\1",
+        raw.replace(",", "").strip(),
+    )
+    formats = (
+        "%B %d %Y", "%b %d %Y",
+        "%B %d", "%b %d",
+        "%m/%d/%Y", "%m/%d/%y",
+        "%Y/%m/%d",
+        "%d %B %Y", "%d %b %Y",
+        "%d-%m-%Y",
+    )
+
+    parsed = None
+    for fmt in formats:
+        try:
+            parsed = datetime.strptime(cleaned, fmt).date()
+            break
+        except ValueError:
+            continue
+
+    if parsed is None:
+        raise ValueError(
+            f"{field_name} must be a recognizable date, such as "
+            "'2026-11-16', 'November 16, 2026', or 'Nov 16'."
+        )
+
+    if not re.search(r"\b\d{4}\b", cleaned) and "/" not in cleaned:
+        today = datetime.now(ZoneInfo("America/Vancouver")).date()
+        parsed = parsed.replace(year=today.year)
+        if parsed < today:
+            parsed = parsed.replace(year=today.year + 1)
+
+    return parsed.isoformat()
 
 
 def _read():
@@ -74,13 +123,10 @@ def create_pending_calendar_action(arguments, conversation_id, action):
         if start_date or end_date:
             if not start_date or not end_date:
                 raise ValueError("Both start and end dates are required for an all-day event.")
-            try:
-                start_day = datetime.strptime(start_date, "%Y-%m-%d").date()
-                end_day = datetime.strptime(end_date, "%Y-%m-%d").date()
-            except ValueError:
-                raise ValueError("All-day dates must use YYYY-MM-DD.")
-            if start_day.isoformat() != start_date or end_day.isoformat() != end_date:
-                raise ValueError("All-day dates must use YYYY-MM-DD.")
+            start_date = _normalize_all_day_date(start_date, "Start date")
+            end_date = _normalize_all_day_date(end_date, "End date")
+            start_day = date.fromisoformat(start_date)
+            end_day = date.fromisoformat(end_date)
             if end_day <= start_day:
                 raise ValueError("End date must be after start date. For a one-day event, use the following day as the end date.")
             if start_time or end_time:
@@ -195,13 +241,10 @@ def update_pending_calendar_event_times(
         if start_date or end_date:
             if not start_date or not end_date:
                 raise ValueError("Both start and end dates are required for an all-day event.")
-            try:
-                start_day = datetime.strptime(start_date, "%Y-%m-%d").date()
-                end_day = datetime.strptime(end_date, "%Y-%m-%d").date()
-            except ValueError:
-                raise ValueError("All-day dates must use YYYY-MM-DD.")
-            if start_day.isoformat() != start_date or end_day.isoformat() != end_date:
-                raise ValueError("All-day dates must use YYYY-MM-DD.")
+            start_date = _normalize_all_day_date(start_date, "Start date")
+            end_date = _normalize_all_day_date(end_date, "End date")
+            start_day = date.fromisoformat(start_date)
+            end_day = date.fromisoformat(end_date)
             if end_day <= start_day:
                 raise ValueError("End date must be after start date. For a one-day event, use the following day as the end date.")
             if start_time or end_time:

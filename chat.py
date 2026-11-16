@@ -447,11 +447,11 @@ def chat(request: ChatRequest):
                     "For Google Calendar, use "
                     "mcp_search_calendar_events and mcp_get_calendar_event_details "
                     "to inspect events before answering questions or proposing changes. "
-                    "Use mcp_create_calendar_event, mcp_update_calendar_event, or "
-                    "mcp_delete_calendar_event for a single calendar change. For multiple "
-                    "calendar changes requested together, use mcp_create_calendar_events "
-                    "with an events array. Each item must include action (create, update, "
-                    "or delete) and the relevant event fields. You may propose additional "
+                    "Use mcp_create_calendar_events for ALL event creation requests, "
+                    "including a single event, using an events array. Each item must "
+                    "include action='create' and the relevant event fields. Use "
+                    "mcp_update_calendar_event and mcp_delete_calendar_event for "
+                    "changes to existing events. You may propose additional "
                     "batches in later turns of the same conversation; there is no one-batch "
                     "limit per conversation. Every change must be presented together for "
                     "explicit user approval in chat before execution. Never claim a change "
@@ -667,7 +667,6 @@ def chat(request: ChatRequest):
                     break
 
                 calendar_actions = {
-                    "mcp_create_calendar_event": "create",
                     "mcp_update_calendar_event": "update",
                     "mcp_delete_calendar_event": "delete",
                 }
@@ -720,6 +719,7 @@ def chat(request: ChatRequest):
                         continue
 
                     if calendar_calls:
+                        print("[CALENDAR DEBUG] Calendar tool call intercepted.", flush=True)
                         try:
                             actions = []
 
@@ -745,10 +745,12 @@ def chat(request: ChatRequest):
                                         calendar_actions[call.function.name],
                                     ))
 
+                            print(f"[CALENDAR DEBUG] Preparing {len(actions)} actions.", flush=True)
                             calendar_proposal = create_pending_calendar_actions(
                                 actions,
                                 request.conversation_id,
                             )
+                            print(f"[CALENDAR DEBUG] Proposal prepared: {len(calendar_proposal.get('pending_ids', []))} pending items.", flush=True)
                         except Exception as error:
                             calendar_proposal = {"error": str(error)}
 
@@ -877,9 +879,11 @@ def chat(request: ChatRequest):
                     )
 
             full_reply = "\\n\\n".join(proposal_parts) if proposal_parts else (result.content or "")
+            print(f"[CALENDAR DEBUG] Final reply ready ({len(full_reply)} characters).", flush=True)
 
             for index in range(0, len(full_reply), 40):
                 yield full_reply[index:index + 40]
+            print("[CALENDAR DEBUG] Reply stream completed.", flush=True)
 
             if has_turn_usage:
                 record_turn_usage(

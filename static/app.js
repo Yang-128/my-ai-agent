@@ -576,30 +576,64 @@ function renderMessageContent(message, text) {
       const title = document.createElement("strong");
       title.textContent = `${index + 1}. ${
         { create: "Create", update: "Update", delete: "Delete" }[action] || "Change"
-      }: ${event.summary || item.summary || "Untitled event"}`;
+      }`;
       section.appendChild(title);
+
+      if (action === "create" || action === "update") {
+        const titleLabel = document.createElement("label");
+        titleLabel.textContent = "Event title";
+        titleLabel.style.cssText = "display:block;margin-top:10px;font-size:0.9em";
+        const titleInput = document.createElement("input");
+        titleInput.type = "text";
+        titleInput.maxLength = 200;
+        titleInput.required = true;
+        titleInput.value = event.summary || item.summary || "";
+        titleInput.placeholder = "Enter event title";
+        titleInput.setAttribute("aria-label", `Event ${index + 1} title`);
+        titleInput.style.cssText = "display:block;box-sizing:border-box;width:100%;max-width:480px;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font:inherit";
+        titleLabel.appendChild(titleInput);
+        section.appendChild(titleLabel);
+
+        const descriptionLabel = document.createElement("label");
+        descriptionLabel.textContent = "Description (optional)";
+        descriptionLabel.style.cssText = "display:block;margin-top:10px;font-size:0.9em";
+        const descriptionInput = document.createElement("textarea");
+        descriptionInput.maxLength = 5000;
+        descriptionInput.rows = 2;
+        descriptionInput.value = event.description || "";
+        descriptionInput.placeholder = "Add notes or details";
+        descriptionInput.style.cssText = "display:block;box-sizing:border-box;width:100%;max-width:480px;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;resize:vertical";
+        descriptionLabel.appendChild(descriptionInput);
+        section.appendChild(descriptionLabel);
+
+        const locationLabel = document.createElement("label");
+        locationLabel.textContent = "Location (optional)";
+        locationLabel.style.cssText = "display:block;margin-top:10px;font-size:0.9em";
+        const locationInput = document.createElement("input");
+        locationInput.type = "text";
+        locationInput.maxLength = 500;
+        locationInput.value = event.location || "";
+        locationInput.placeholder = "Add a location";
+        locationInput.style.cssText = "display:block;box-sizing:border-box;width:100%;max-width:480px;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font:inherit";
+        locationLabel.appendChild(locationInput);
+        section.appendChild(locationLabel);
+        item._calendarEditor = { titleInput, descriptionInput, locationInput };
+      }
 
       const details = document.createElement("div");
       details.style.cssText = "margin-top:6px;white-space:pre-line";
       const lines = [];
 
       if (action === "create" || action === "update") {
-        const isMidnight = value =>
-          typeof value === "string" &&
-          /T00:00(?::00(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?$/.test(value);
-
-        const allDay = Boolean(
-          event.start?.date ||
-          event.end?.date ||
-          (
-            isMidnight(event.start?.dateTime || event.start_time) &&
-            isMidnight(event.end?.dateTime || event.end_time)
-          )
-        );
+        const allDay = Boolean(event.start?.date || event.end?.date);
         const startValue = event.start?.dateTime || event.start?.date || event.start_time;
         const endValue = event.end?.dateTime || event.end?.date || event.end_time;
         if (startValue) lines.push(`Start: ${formatDate(startValue, allDay)}`);
-        if (endValue) lines.push(`End: ${formatDate(endValue, allDay)}`);
+        if (endValue) lines.push(
+          allDay
+            ? `End date (exclusive): ${formatDate(endValue, true)}`
+            : `End: ${formatDate(endValue)}`
+        );
         if (event.recurrence?.length) lines.push(`Repeats: ${event.recurrence.join("; ")}`);
         if (event.location) lines.push(`Location: ${event.location}`);
         if (event.description) lines.push(`Description: ${event.description}`);
@@ -612,18 +646,7 @@ function renderMessageContent(message, text) {
       section.appendChild(details);
 
       if (action === "create" || action === "update") {
-        const isMidnight = value =>
-          typeof value === "string" &&
-          /T00:00(?::00(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?$/.test(value);
-
-        const allDay = Boolean(
-          event.start?.date ||
-          event.end?.date ||
-          (
-            isMidnight(event.start?.dateTime || event.start_time) &&
-            isMidnight(event.end?.dateTime || event.end_time)
-          )
-        );
+        const allDay = Boolean(event.start?.date || event.end?.date);
         function getDateAndTime(value, fallbackDate = "") {
           const local = toDateTimeLocal(value);
           if (local) {
@@ -771,6 +794,7 @@ function renderMessageContent(message, text) {
         proposalTimeInputs.push(null);
       }
 
+      item._calendarSection = section;
       card.appendChild(section);
     });
 
@@ -804,16 +828,19 @@ function renderMessageContent(message, text) {
         return;
       }
 
-      if (approved && proposalTimeInputs.some(fields =>
+      if (approved && proposalTimeInputs.some((fields, index) =>
         fields && fields.action !== "delete" && (
+          !proposals[index]._calendarEditor?.titleInput.value.trim() ||
           !fields.startInput.value ||
           !fields.endInput.value ||
           (!fields.allDayToggle.checked &&
-            (!fields.startTime.values() || !fields.endTime.values()))
+            (!fields.startTime.values() || !fields.endTime.values())) ||
+          (fields.allDayToggle.checked &&
+            fields.endInput.value <= fields.startInput.value)
         )
       )) {
         status.hidden = false;
-        status.textContent = "Please enter both dates and select an hour, minute, and AM/PM for both times of timed events. All-day events do not require times.";
+        status.textContent = "Check that every event has a title, valid start and end dates, and complete times for timed events. All-day end dates must be after their start dates.";
         return;
       }
 
@@ -831,25 +858,33 @@ function renderMessageContent(message, text) {
           body: JSON.stringify({
             pending_ids: pendingIds,
             approved,
-            times: proposalTimeInputs.map(fields => fields
-              ? fields.allDayToggle.checked
+            times: proposalTimeInputs.map((fields, index) => {
+              if (!fields) return {};
+              const editor = proposals[index]._calendarEditor || {};
+              const common = {
+                summary: editor.titleInput?.value.trim() || "",
+                description: editor.descriptionInput?.value.trim() || "",
+                location: editor.locationInput?.value.trim() || ""
+              };
+              return fields.allDayToggle.checked
                 ? {
+                    ...common,
                     start_date: fields.startInput.value,
                     end_date: fields.endInput.value
                   }
                 : {
+                    ...common,
                     start_time: `${fields.startInput.value}T${fields.startTime.values()}`,
                     end_time: `${fields.endInput.value}T${fields.endTime.values()}`
-                  }
-              : {})
+                  };
+            })
           })
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || "Could not process this proposal.");
 
-        actions.remove();
-
         if (!approved) {
+          actions.remove();
           status.textContent = `${data.declined || pendingIds.length} calendar change(s) declined.`;
           return;
         }
@@ -859,7 +894,7 @@ function renderMessageContent(message, text) {
         const failed = results.length - succeeded;
         status.textContent = `${succeeded} change(s) completed${failed ? `; ${failed} failed` : ""}.`;
 
-        results.forEach(item => {
+        results.forEach((item, index) => {
           const resultLine = document.createElement("div");
           resultLine.style.cssText = "margin-top:6px";
           resultLine.textContent = item.success
@@ -877,6 +912,30 @@ function renderMessageContent(message, text) {
             card.appendChild(link);
           }
         });
+
+        if (failed) {
+          const failedIndices = results
+            .map((item, index) => item.success ? -1 : index)
+            .filter(index => index >= 0);
+          const failedIds = failedIndices.map(index => pendingIds[index]);
+          const failedProposals = failedIndices.map(index => proposals[index]);
+          const failedInputs = failedIndices.map(index => proposalTimeInputs[index]);
+
+          proposals.forEach((item, index) => {
+            if (!failedIndices.includes(index)) item._calendarSection?.remove();
+          });
+
+          pendingIds.splice(0, pendingIds.length, ...failedIds);
+          proposals.splice(0, proposals.length, ...failedProposals);
+          proposalTimeInputs.splice(0, proposalTimeInputs.length, ...failedInputs);
+          heading.textContent = `Review ${failed} remaining calendar change${failed === 1 ? "" : "s"}`;
+          approve.textContent = `Retry ${failed} failed change${failed === 1 ? "" : "s"}`;
+          approve.disabled = false;
+          decline.disabled = false;
+          status.textContent += ". Failed changes remain available to retry.";
+        } else {
+          actions.remove();
+        }
       } catch (error) {
         status.textContent = error.message;
         approve.disabled = false;

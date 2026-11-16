@@ -60,7 +60,7 @@ def create_pending_calendar_action(arguments, conversation_id, action):
         ):
             raise ValueError("Recurrence must be a list of RRULE strings.")
 
-        if action == "create" and len(summary) > 200:
+        if len(summary) > 200:
             raise ValueError("Event title must be 200 characters or fewer.")
 
         if summary:
@@ -72,16 +72,17 @@ def create_pending_calendar_action(arguments, conversation_id, action):
 
         local_timezone = ZoneInfo("America/Vancouver")
         if start_date or end_date:
+            if not start_date or not end_date:
+                raise ValueError("Both start and end dates are required for an all-day event.")
             try:
                 start_day = datetime.strptime(start_date, "%Y-%m-%d").date()
                 end_day = datetime.strptime(end_date, "%Y-%m-%d").date()
             except ValueError:
                 raise ValueError("All-day dates must use YYYY-MM-DD.")
-            if end_day == start_day:
-                end_day += timedelta(days=1)
-                end_date = end_day.isoformat()
-            if end_day < start_day:
-                raise ValueError("All-day event end date must be after its start date.")
+            if start_day.isoformat() != start_date or end_day.isoformat() != end_date:
+                raise ValueError("All-day dates must use YYYY-MM-DD.")
+            if end_day <= start_day:
+                raise ValueError("End date must be after start date. For a one-day event, use the following day as the end date.")
             if start_time or end_time:
                 raise ValueError("An event cannot mix all-day dates with date-times.")
             event["start"] = {"date": start_date}
@@ -153,7 +154,8 @@ def create_pending_calendar_actions(actions, conversation_id):
 
 
 def update_pending_calendar_event_times(
-    pending_id, start_time="", end_time="", start_date="", end_date=""
+    pending_id, start_time="", end_time="", start_date="", end_date="",
+    summary=None, description=None, location=None
 ):
     start_time = str(start_time or "").strip()
     end_time = str(end_time or "").strip()
@@ -175,17 +177,35 @@ def update_pending_calendar_event_times(
             raise ValueError("Times can only be set for create or update proposals.")
 
         event = proposal.setdefault("event", {})
+
+        if summary is not None:
+            summary = str(summary).strip()
+            if not summary:
+                raise ValueError("Event title cannot be empty.")
+            if len(summary) > 200:
+                raise ValueError("Event title cannot exceed 200 characters.")
+            event["summary"] = summary
+
+        if description is not None:
+            event["description"] = str(description).strip()[:5000]
+
+        if location is not None:
+            event["location"] = str(location).strip()[:500]
+
         if start_date or end_date:
+            if not start_date or not end_date:
+                raise ValueError("Both start and end dates are required for an all-day event.")
             try:
                 start_day = datetime.strptime(start_date, "%Y-%m-%d").date()
                 end_day = datetime.strptime(end_date, "%Y-%m-%d").date()
             except ValueError:
                 raise ValueError("All-day dates must use YYYY-MM-DD.")
-            if end_day == start_day:
-                end_day += timedelta(days=1)
-                end_date = end_day.isoformat()
-            if end_day < start_day:
-                raise ValueError("All-day event end date must be after its start date.")
+            if start_day.isoformat() != start_date or end_day.isoformat() != end_date:
+                raise ValueError("All-day dates must use YYYY-MM-DD.")
+            if end_day <= start_day:
+                raise ValueError("End date must be after start date. For a one-day event, use the following day as the end date.")
+            if start_time or end_time:
+                raise ValueError("An event cannot mix all-day dates with date-times.")
             event["start"] = {"date": start_date}
             event["end"] = {"date": end_date}
             _write(data)
@@ -199,6 +219,7 @@ def update_pending_calendar_event_times(
                 and event.get("end", {}).get("dateTime")
             ):
                 raise ValueError("Please enter both a start and end date/time.")
+            _write(data)
             return True
 
         if not start_time or not end_time:
@@ -222,17 +243,16 @@ def update_pending_calendar_event_times(
 
     return True
 
-def consume_pending_calendar_event(pending_id):
+def get_pending_calendar_event(pending_id):
     with _LOCK:
-        data = _read()
-        item = data.pop(str(pending_id), None)
-        _write(data)
+        item = _read().get(str(pending_id))
 
     if not item:
         raise ValueError("This event proposal has expired or has already been handled.")
 
     created = datetime.fromisoformat(item["created_at"])
     if datetime.now(timezone.utc) - created > _EXPIRY:
+        discard_pending_calendar_event(pending_id)
         raise ValueError("This event proposal has expired. Ask the assistant to propose it again.")
 
     return item

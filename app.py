@@ -21,7 +21,7 @@ from storage import (
 )
 from providers import PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
-from calendar_approval import consume_pending_calendar_event, discard_pending_calendar_event, update_pending_calendar_event_times
+from calendar_approval import get_pending_calendar_event, discard_pending_calendar_event, update_pending_calendar_event_times
 from gmail_approval import consume_pending_gmail_message, discard_pending_gmail_message, validate_attachments
 from google_integrations import (
     start_google_oauth,
@@ -439,7 +439,7 @@ def tools_server_status():
 
 @app.post("/api/tools/{tool_name}/run")
 def run_tool(tool_name: str, arguments: dict):
-    if tool_name == "mcp_create_calendar_event":
+    if tool_name == "mcp_create_calendar_events":
         raise HTTPException(status_code=403, detail="Calendar events must be approved from the chat proposal.")
     available = {
         item["function"]["name"]
@@ -629,6 +629,15 @@ def google_calendar_approve_event(body: dict):
         for pending_id, time_entry in zip(pending_ids, supplied_times):
             if not isinstance(time_entry, dict):
                 raise HTTPException(status_code=422, detail="Invalid calendar time entry.")
+            if not any(
+                key in time_entry
+                for key in (
+                    "start_time", "end_time", "start_date", "end_date",
+                    "summary", "description", "location"
+                )
+            ):
+                continue
+
             try:
                 update_pending_calendar_event_times(
                     pending_id,
@@ -636,6 +645,9 @@ def google_calendar_approve_event(body: dict):
                     time_entry.get("end_time", ""),
                     time_entry.get("start_date", ""),
                     time_entry.get("end_date", ""),
+                    summary=time_entry.get("summary"),
+                    description=time_entry.get("description"),
+                    location=time_entry.get("location"),
                 )
             except ValueError as error:
                 raise HTTPException(status_code=422, detail=str(error))
@@ -644,7 +656,7 @@ def google_calendar_approve_event(body: dict):
 
     for pending_id in pending_ids:
         try:
-            pending = consume_pending_calendar_event(pending_id)
+            pending = get_pending_calendar_event(pending_id)
             proposal = pending["proposal"]
             action = proposal["action"]
             event_id = proposal.get("event_id", "")
@@ -690,6 +702,8 @@ def google_calendar_approve_event(body: dict):
 
             else:
                 raise ValueError("Unsupported calendar action.")
+
+            discard_pending_calendar_event(pending_id)
 
         except Exception as error:
             results.append({

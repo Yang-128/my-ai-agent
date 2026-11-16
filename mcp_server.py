@@ -47,34 +47,6 @@ def mac_walk_directories(start):
 
 
 @mcp.tool()
-def create_calendar_event(
-    summary: str,
-    start_time: str = "",
-    end_time: str = "",
-    location: str = "",
-    description: str = "",
-    start_date: str = "",
-    end_date: str = "",
-    recurrence: list[str] | None = None,
-) -> str:
-    """Propose a Google Calendar event for user approval. For timed events use start_time and end_time as ISO 8601 date-times with timezone. For all-day events use start_date and end_date as YYYY-MM-DD dates; end_date is exclusive (the following day for a one-day event). For recurring events provide recurrence as Google Calendar RRULE strings, e.g. ["RRULE:FREQ=WEEKLY;BYDAY=MO,FR,SA"]. Do not invent times or recurrence end dates."""
-    import json
-    return json.dumps({
-        "requires_user_approval": True,
-        "summary": summary,
-        "start_time": start_time,
-        "end_time": end_time,
-        "start_date": start_date,
-        "end_date": end_date,
-        "recurrence": recurrence or [],
-        "location": location,
-        "description": description,
-    }, ensure_ascii=False)
-
-
-
-
-@mcp.tool()
 def create_calendar_events(events: list[dict]) -> str:
     """Propose multiple Google Calendar changes in one batch for user approval. Each item must include action (create, update, or delete) and relevant event fields. For timed create/update events use start_time and end_time as ISO 8601 date-times with timezone. For all-day events use start_date and end_date as YYYY-MM-DD dates; end_date is exclusive, so a one-day event on March 15 uses start_date="2027-03-15" and end_date="2027-03-16". For recurring events include recurrence as an array of Google Calendar RRULE strings, e.g. ["RRULE:FREQ=WEEKLY;BYDAY=MO,FR,SA"] or ["RRULE:FREQ=WEEKLY;BYDAY=TU"]. Do not invent times or recurrence end dates; omit UNTIL and COUNT unless specified by the user. A recurring event still needs a valid start and end (date-time or all-day date) defining its occurrence. The user must approve the entire batch before any changes are executed."""
     import json

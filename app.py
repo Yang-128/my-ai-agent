@@ -633,7 +633,7 @@ def google_calendar_approve_event(body: dict):
                 key in time_entry
                 for key in (
                     "start_time", "end_time", "start_date", "end_date",
-                    "summary", "description", "location"
+                    "summary", "description", "location", "recurrence"
                 )
             ):
                 continue
@@ -648,6 +648,7 @@ def google_calendar_approve_event(body: dict):
                     summary=time_entry.get("summary"),
                     description=time_entry.get("description"),
                     location=time_entry.get("location"),
+                    recurrence=time_entry.get("recurrence"),
                 )
             except ValueError as error:
                 raise HTTPException(status_code=422, detail=str(error))

@@ -159,8 +159,9 @@ def send_gmail_message(
 
 @mcp.tool()
 def get_current_time() -> str:
-    """Get the current local date and time."""
-    return datetime.now().astimezone().isoformat()
+    """Get the current local date, weekday, and time. Use the weekday as a cross-check."""
+    now = datetime.now().astimezone()
+    return f"{now.strftime('%A, %Y-%m-%d %H:%M:%S %Z')} ({now.isoformat()})"
 
 
 @mcp.tool()

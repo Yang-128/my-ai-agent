@@ -634,7 +634,23 @@ function renderMessageContent(message, text) {
             ? `End date (exclusive): ${formatDate(endValue, true)}`
             : `End: ${formatDate(endValue)}`
         );
-        if (event.recurrence?.length) lines.push(`Repeats: ${event.recurrence.join("; ")}`);
+        if (event.recurrence?.length) {
+          const rule = event.recurrence[0] || "";
+          const frequency = /FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/i.exec(rule)?.[1]?.toUpperCase();
+          const dayNames = {
+            MO: "Monday", TU: "Tuesday", WE: "Wednesday", TH: "Thursday",
+            FR: "Friday", SA: "Saturday", SU: "Sunday"
+          };
+          const days = /BYDAY=([^;]+)/i.exec(rule)?.[1]
+            ?.split(",").map(day => dayNames[day.toUpperCase()]).filter(Boolean) || [];
+          const descriptions = {
+            DAILY: "Every day",
+            WEEKLY: days.length ? `Every week on ${days.join(", ")}` : "Every week",
+            MONTHLY: "Every month",
+            YEARLY: "Every year"
+          };
+          if (frequency) lines.push(`Repeats: ${descriptions[frequency]}`);
+        }
         if (event.location) lines.push(`Location: ${event.location}`);
         if (event.description) lines.push(`Description: ${event.description}`);
       } else if (action === "delete") {
@@ -746,6 +762,78 @@ function renderMessageContent(message, text) {
         const startTime = makeTimePicker(startOriginal, `Event ${index + 1} start`);
         const endTime = makeTimePicker(endOriginal, `Event ${index + 1} end`);
 
+        const recurrenceRules = Array.isArray(event.recurrence) ? event.recurrence : [];
+        const originalRule = recurrenceRules[0] || "";
+        const originalFrequency = /FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/i.exec(originalRule)?.[1]?.toLowerCase() || "none";
+        const recurrenceLabel = document.createElement("label");
+        recurrenceLabel.textContent = "Repeat";
+        recurrenceLabel.style.cssText = "display:block;margin-top:12px;font-size:0.9em";
+        const recurrenceSelect = document.createElement("select");
+        recurrenceSelect.setAttribute("aria-label", `Event ${index + 1} repeat frequency`);
+        recurrenceSelect.style.cssText = "display:block;width:100%;max-width:320px;margin-top:8px;padding:9px;border:1px solid var(--border-color,#888);border-radius:8px;background:var(--input-bg,transparent);color:inherit";
+        [
+          ["none", "Does not repeat"],
+          ["daily", "Every day"],
+          ["weekly", "Every week"],
+          ["monthly", "Every month"],
+          ["yearly", "Every year"]
+        ].forEach(([value, label]) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = label;
+          recurrenceSelect.appendChild(option);
+        });
+        recurrenceSelect.value = originalFrequency;
+        recurrenceLabel.appendChild(recurrenceSelect);
+
+        const weekdayWrap = document.createElement("div");
+        weekdayWrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:9px";
+        const weekdayInputs = {};
+        const weekdayOptions = [
+          ["MO", "Mon"], ["TU", "Tue"], ["WE", "Wed"], ["TH", "Thu"],
+          ["FR", "Fri"], ["SA", "Sat"], ["SU", "Sun"]
+        ];
+        const originalDays = /BYDAY=([^;]+)/i.exec(originalRule)?.[1]
+          ?.split(",").map(day => day.toUpperCase()) || [];
+        if (!originalDays.length && originalFrequency === "weekly") {
+          const anchor = new Date(`${startInput.value || startOriginal.date}T12:00:00`);
+          if (!Number.isNaN(anchor.getTime())) {
+            originalDays.push(["SU", "MO", "TU", "WE", "TH", "FR", "SA"][anchor.getDay()]);
+          }
+        }
+        weekdayOptions.forEach(([value, label]) => {
+          const dayLabel = document.createElement("label");
+          dayLabel.style.cssText = "display:inline-flex;align-items:center;gap:4px;font-size:0.85em";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = value;
+          checkbox.checked = originalDays.includes(value);
+          dayLabel.append(checkbox, document.createTextNode(label));
+          weekdayWrap.appendChild(dayLabel);
+          weekdayInputs[value] = checkbox;
+        });
+        function updateWeekdayVisibility() {
+          weekdayWrap.hidden = recurrenceSelect.value !== "weekly";
+        }
+        recurrenceSelect.addEventListener("change", updateWeekdayVisibility);
+        updateWeekdayVisibility();
+        section.append(recurrenceLabel, weekdayWrap);
+
+        const recurrenceEditor = {
+          values() {
+            const frequency = recurrenceSelect.value.toUpperCase();
+            if (frequency === "NONE") return [];
+            if (frequency === "WEEKLY") {
+              const days = weekdayOptions
+                .filter(([value]) => weekdayInputs[value].checked)
+                .map(([value]) => value);
+              if (!days.length) return null;
+              return [`RRULE:FREQ=WEEKLY;BYDAY=${days.join(",")}`];
+            }
+            return [`RRULE:FREQ=${frequency}`];
+          }
+        };
+
         const allDayLabel = document.createElement("label");
         allDayLabel.style.cssText = "display:block;margin-top:10px;font-size:0.9em";
         const allDayToggle = document.createElement("input");
@@ -788,7 +876,8 @@ function renderMessageContent(message, text) {
           allDayLabel, startLabel, startTimeLabel, endLabel, endTimeLabel
         );
         proposalTimeInputs.push({
-          startInput, endInput, startTime, endTime, allDayToggle, action
+          startInput, endInput, startTime, endTime, allDayToggle,
+          recurrenceEditor, action
         });
       } else {
         proposalTimeInputs.push(null);
@@ -828,6 +917,14 @@ function renderMessageContent(message, text) {
         return;
       }
 
+      if (approved && proposalTimeInputs.some(
+        fields => fields && fields.recurrenceEditor?.values() === null
+      )) {
+        status.hidden = false;
+        status.textContent = "Select at least one weekday for a weekly event.";
+        return;
+      }
+
       if (approved && proposalTimeInputs.some((fields, index) =>
         fields && fields.action !== "delete" && (
           !proposals[index]._calendarEditor?.titleInput.value.trim() ||
@@ -864,7 +961,8 @@ function renderMessageContent(message, text) {
               const common = {
                 summary: editor.titleInput?.value.trim() || "",
                 description: editor.descriptionInput?.value.trim() || "",
-                location: editor.locationInput?.value.trim() || ""
+                location: editor.locationInput?.value.trim() || "",
+                recurrence: fields.recurrenceEditor.values()
               };
               return fields.allDayToggle.checked
                 ? {

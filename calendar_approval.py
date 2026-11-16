@@ -201,7 +201,7 @@ def create_pending_calendar_actions(actions, conversation_id):
 
 def update_pending_calendar_event_times(
     pending_id, start_time="", end_time="", start_date="", end_date="",
-    summary=None, description=None, location=None
+    summary=None, description=None, location=None, recurrence=None
 ):
     start_time = str(start_time or "").strip()
     end_time = str(end_time or "").strip()
@@ -237,6 +237,23 @@ def update_pending_calendar_event_times(
 
         if location is not None:
             event["location"] = str(location).strip()[:500]
+
+        if recurrence is not None:
+            if (
+                not isinstance(recurrence, list)
+                or len(recurrence) > 1
+                or not all(
+                    isinstance(rule, str)
+                    and rule.startswith("RRULE:")
+                    and len(rule) <= 500
+                    for rule in recurrence
+                )
+            ):
+                raise ValueError("Invalid recurrence selection.")
+            if recurrence:
+                event["recurrence"] = recurrence
+            else:
+                event.pop("recurrence", None)
 
         if start_date or end_date:
             if not start_date or not end_date:

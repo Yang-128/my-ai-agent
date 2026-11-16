@@ -1,0 +1,21 @@
+.env
+conversations.db
+
+google_calendar_token.json
+google_oauth_state.json
+
+# Python cache and local runtime data
+__pycache__/
+*.py[cod]
+api_debug.log
+pending_calendar_events.json
+
+# Local edit backups
+*.bak
+*.bak-*
+
+# Local environment and runtime data
+.venv/
+node_modules/
+src-tauri/target/
+src-tauri/gen/

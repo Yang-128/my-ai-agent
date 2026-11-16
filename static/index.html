@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Agent</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ style_version }}">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">✳</div>
+      <span>My Agent</span>
+    </div>
+
+    <button class="new-chat" onclick="newChat()">＋ New chat</button>
+
+    <div class="side-label">WORKSPACE</div>
+    <button class="nav-item active" id="chat-nav">💬 &nbsp; Chat</button>
+    <button class="nav-item" id="usage-nav">📊 &nbsp; Usage</button>
+    <button class="nav-item" id="tools-nav">🧰 &nbsp; Tools & MCP</button>
+    <button class="nav-item" id="files-nav">📁 &nbsp; Files</button>
+
+    <div class="side-label history-label">RECENT</div>
+    <div id="history" class="history">
+      <div class="history-item selected">New conversation</div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="avatar">A</div>
+      <div class="profile">
+        <strong>Local Workspace</strong>
+        <span>Personal AI Agent</span>
+      </div>
+      <span class="settings">⚙</span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="breadcrumb">Workspace <span>/</span> Chat</div>
+      <div class="top-right">
+        <span class="status"><i></i> Online</span>
+        <button class="model-button">GPT OSS 120B ▾</button>
+      </div>
+    </header>
+
+    <section class="conversation" id="conversation">
+      <div class="welcome" id="welcome">
+        <div class="welcome-icon">✳</div>
+        <h1>What can I help you with?</h1>
+        <p>Your personal AI workspace. Ask, create, explore, and get things done.</p>
+
+        <div class="suggestions">
+          <button onclick="useSuggestion('Help me organize my projects')">
+            <span>▦</span>
+            <strong>Organize my work</strong>
+            <small>Plan projects and tasks</small>
+          </button>
+          <button onclick="useSuggestion('Explain a difficult concept to me')">
+            <span>⌘</span>
+            <strong>Learn something</strong>
+            <small>Understand complex ideas</small>
+          </button>
+          <button onclick="useSuggestion('Help me write a Python program')">
+            <span>⌨</span>
+            <strong>Write code</strong>
+            <small>Build and debug programs</small>
+          </button>
+        </div>
+      </div>
+      <div id="messages" class="messages"></div>
+    </section>
+
+
+    <section class="usage-page" id="usage-page" style="display:none">
+      <div class="usage-heading">
+        <h1>Usage</h1>
+        <p>Monitor your AI providers and model limits.</p>
+      </div>
+
+      <div class="usage-summary" id="usage-summary"></div>
+
+      <div class="usage-section">
+        <h2>Provider status</h2>
+        <div class="provider-status-grid" id="provider-status"></div>
+      </div>
+
+      <div class="usage-section">
+        <h2>Model breakdown</h2>
+        <div class="usage-table-wrap">
+          <table class="usage-table">
+            <thead>
+              <tr>
+                <th>Provider / Model</th>
+                <th>Model status</th>
+                <th>RPM (last 60 sec)</th>
+                <th>TPM (last 60 sec)</th>
+                <th>RPD (today)</th>
+                <th>TPD (today)</th>
+                <th>Avg tokens / turn</th>
+                <th>Reset</th>
+              </tr>
+            </thead>
+            <tbody id="usage-rows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <p class="usage-note">Limits and reset information depend on what each provider makes available through its API.</p>
+      <button class="refresh-usage" id="refresh-usage">↻ Refresh usage</button>
+    </section>
+
+    <section class="tools-page" id="tools-page" style="display:none">
+      <div class="tools-heading">
+        <div>
+          <h1>Tools & MCP</h1>
+          <p>Tools your agent can use to perform calculations, access project files, and retrieve previous conversations.</p>
+        </div>
+        <button class="refresh-usage" id="refresh-tools">↻ Refresh tools</button>
+      </div>
+
+
+      <section id="google-calendar-panel" class="tools-section" style="margin:24px 0;padding:20px;border:1px solid var(--border-color, #444);border-radius:12px">
+        <h2>Google Calendar</h2>
+        <p id="google-calendar-status">Checking connection...</p>
+        <button type="button" class="refresh-usage" id="google-calendar-connect">Connect Google Calendar</button>
+      </section>
+
+      <div class="tools-summary" id="tools-summary"></div>
+
+      <div class="tools-section">
+        <h2>Available tools</h2>
+        <div class="tools-grid" id="tools-list">
+          <p class="tools-empty">Loading tools...</p>
+        </div>
+      </div>
+    </section>
+
+
+    <section class="files-page" id="files-page" style="display:none">
+      <div class="files-heading">
+        <div>
+          <h1>Files</h1>
+          <p>Browse project files and documents created by your agent.</p>
+        </div>
+        <button class="refresh-usage" id="refresh-files">↻ Refresh</button>
+      </div>
+      <div class="files-browser">
+        <div class="files-toolbar">
+          <div id="files-breadcrumb" class="files-breadcrumb">Workspace</div>
+          <select id="files-location" class="files-location" aria-label="File location">
+            <option value="workspace">Project Workspace</option>
+            <option value="documents">My AI Agent Documents</option>
+          </select>
+          <button id="files-up" class="files-up" disabled>↑ Up</button>
+        </div>
+        <div class="files-content">
+          <div id="files-list" class="files-list">Loading files...</div>
+          <div class="file-preview" id="file-preview">
+            <div class="file-preview-empty">Select a file to preview its contents.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="composer-area">
+      <form class="composer" id="chat-form">
+        <textarea id="message-input" placeholder="Message your agent..." rows="1"></textarea>
+        <input id="image-input" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+        <div id="image-preview" class="image-preview" hidden></div>
+        <div class="composer-bottom">
+          <div class="composer-tools">
+            <button id="attach-image-button" type="button" title="Attach images">＋</button>
+          </div>
+          <button class="send-button" type="submit" aria-label="Send">↑</button>
+        </div>
+      </form>
+      <p class="disclaimer">My Agent can make mistakes. Verify important information.</p>
+    </footer>
+  </main>
+
+  <script src="/static/app.js?v=20261115-calendartimeinputs2"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+  startup: { typeset: false }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+</body>
+</html>

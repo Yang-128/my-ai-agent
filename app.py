@@ -22,6 +22,7 @@ from storage import (
 from providers import PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
 from calendar_approval import consume_pending_calendar_event, discard_pending_calendar_event, update_pending_calendar_event_times
+from gmail_approval import consume_pending_gmail_message, discard_pending_gmail_message, validate_attachments
 from google_integrations import (
     start_google_oauth,
     finish_google_oauth,
@@ -30,11 +31,14 @@ from google_integrations import (
     update_calendar_event,
     delete_calendar_event,
     disconnect_google_calendar,
+    google_gmail_status,
+    send_gmail_message,
 )
 
 import asyncio
 import signal
 import time
+import multiprocessing
 
 app = FastAPI(title="My AI Agent")
 
@@ -72,7 +76,11 @@ async def _monitor_browser_tabs():
         startup_grace_expired = now - _server_started_at > 10
 
         if no_tabs and startup_grace_expired:
-            os.kill(os.getpid(), signal.SIGTERM)
+            # Under Uvicorn --reload, terminate the supervisor rather than
+            # only killing its worker and leaving the supervisor running.
+            parent = multiprocessing.parent_process()
+            target_pid = parent.pid if parent is not None else os.getpid()
+            os.kill(target_pid, signal.SIGTERM)
             return
 
 
@@ -84,8 +92,14 @@ async def start_browser_monitor():
 
 @app.on_event("shutdown")
 async def stop_browser_monitor():
+    global _browser_monitor_task
     if _browser_monitor_task:
         _browser_monitor_task.cancel()
+        try:
+            await _browser_monitor_task
+        except asyncio.CancelledError:
+            pass
+        _browser_monitor_task = None
 
 
 BASE_DIR = RESOURCE_DIR
@@ -556,7 +570,7 @@ def google_calendar_callback(request: Request):
         )
         return HTMLResponse("""
             <html><body style="font-family:system-ui;max-width:600px;margin:80px auto">
-            <h2>Google Calendar connected</h2>
+            <h2>Google account connected</h2>
             <p>You can close this tab and return to My AI Agent.</p>
             </body></html>
         """)
@@ -693,6 +707,86 @@ def google_calendar_approve_event(body: dict):
         "results": results,
     }
 
+
+@app.get("/api/google/gmail/status")
+def google_gmail_connection_status():
+    return google_gmail_status()
+
+
+@app.get("/api/google/gmail/attachments")
+def google_gmail_available_attachments():
+    root = (Path.home() / "Documents" / "My AI Agent").resolve()
+    allowed = {".xlsx", ".xls", ".csv", ".pdf", ".docx", ".doc", ".pptx", ".txt", ".md", ".html", ".png", ".jpg", ".jpeg", ".webp"}
+    items = []
+    for directory, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = [name for name in dirnames if not name.startswith(".") and not (Path(directory) / name).is_symlink()]
+        for filename in filenames:
+            target = Path(directory) / filename
+            try:
+                if target.is_symlink() or target.suffix.lower() not in allowed:
+                    continue
+                resolved = target.resolve()
+                if not resolved.is_relative_to(root) or not resolved.is_file():
+                    continue
+                size = resolved.stat().st_size
+                if size <= 20 * 1024 * 1024:
+                    items.append({
+                        "name": resolved.name,
+                        "path": resolved.relative_to(root).as_posix(),
+                        "size": size,
+                    })
+            except OSError:
+                continue
+    items.sort(key=lambda item: item["path"].lower())
+    return {"items": items}
+
+
+@app.post("/api/google/gmail/approve")
+def google_gmail_approve_message(body: dict):
+    pending_id = str(body.get("pending_id", "")).strip()
+    approved = body.get("approved")
+
+    if not pending_id or not isinstance(approved, bool):
+        raise HTTPException(status_code=422, detail="A pending email ID and approval decision are required.")
+
+    if not approved:
+        if not discard_pending_gmail_message(pending_id):
+            raise HTTPException(status_code=404, detail="This email proposal has expired or was already handled.")
+        return {"success": True, "approved": False, "message": "Email declined."}
+
+    try:
+        pending = consume_pending_gmail_message(pending_id)
+        message = pending["message"]
+        edits = body.get("message")
+        if edits is not None:
+            if not isinstance(edits, dict):
+                raise ValueError("Edited email details must be an object.")
+            for field in ("to", "cc", "bcc", "reply_to", "subject", "body"):
+                if field in edits:
+                    message[field] = str(edits[field] or "").strip() if field != "body" else str(edits[field] or "")
+            if "attachments" in edits:
+                message["attachments"] = validate_attachments(edits["attachments"])
+
+        message["attachments"] = validate_attachments(message.get("attachments", []))
+        if not message["to"] or not message["subject"] or not message["body"].strip():
+            raise ValueError("To, Subject, and Body are required.")
+        if len(message["to"]) > 2000 or len(message["cc"]) > 2000 or len(message["bcc"]) > 2000:
+            raise ValueError("Recipient fields are too long.")
+        if len(message["subject"]) > 998 or len(message["body"]) > 50000:
+            raise ValueError("The email exceeds the allowed size.")
+
+        result = send_gmail_message(**message)
+        return {
+            "success": True,
+            "approved": True,
+            "message_id": result.get("id", ""),
+            "thread_id": result.get("threadId", ""),
+            "recipient": message["to"],
+            "subject": message["subject"],
+            "attachment_count": len(message["attachments"]),
+        }
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 @app.post("/api/google/calendar/disconnect")
 def google_calendar_disconnect():

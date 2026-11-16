@@ -15,7 +15,10 @@ from runtime import DATA_DIR, ENV_FILE
 load_dotenv(ENV_FILE, override=True)
 
 REDIRECT_URI = "http://localhost:8000/api/google/callback"
-SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
+SCOPES = [
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/gmail.send",
+]
 
 TOKEN_FILE = DATA_DIR / "google_calendar_token.json"
 STATE_FILE = DATA_DIR / "google_oauth_state.json"
@@ -76,6 +79,18 @@ def finish_google_oauth(authorization_response, state):
     flow.fetch_token(authorization_response=authorization_response)
     credentials = flow.credentials
 
+    # Google may omit a new refresh token when the account has authorized
+    # this application before. Preserve the existing token for the same user.
+    if not credentials.refresh_token and TOKEN_FILE.exists():
+        try:
+            existing = Credentials.from_authorized_user_file(
+                str(TOKEN_FILE),
+                scopes=SCOPES,
+            )
+            credentials.refresh_token = existing.refresh_token
+        except Exception:
+            pass
+
     if not credentials.refresh_token:
         raise RuntimeError(
             "Google did not provide a refresh token. Revoke this app's access "
@@ -105,6 +120,92 @@ def get_google_credentials():
         raise RuntimeError("Google authorization expired. Reconnect Google Calendar.")
 
     return credentials
+
+
+def get_gmail_service():
+    return build(
+        "gmail",
+        "v1",
+        credentials=get_google_credentials(),
+        cache_discovery=False,
+    )
+
+
+def google_gmail_status():
+    if not TOKEN_FILE.exists():
+        return {"connected": False}
+
+    try:
+        credentials = get_google_credentials()
+        granted_scopes = set(credentials.scopes or [])
+        gmail_scope = "https://www.googleapis.com/auth/gmail.send"
+
+        if gmail_scope not in granted_scopes:
+            return {
+                "connected": False,
+                "error": "Gmail permission is missing. Reconnect your Google account.",
+            }
+
+        return {"connected": True, "email": ""}
+    except Exception as error:
+        return {"connected": False, "error": str(error)}
+
+
+def send_gmail_message(to, subject, body, cc="", bcc="", reply_to="", attachments=None):
+    from email.message import EmailMessage
+    import base64
+
+    to = str(to or "").strip()
+    subject = str(subject or "").strip()
+    body = str(body or "")
+    if not to:
+        raise ValueError("At least one recipient is required.")
+    if not subject:
+        raise ValueError("An email subject is required.")
+    if not body.strip():
+        raise ValueError("An email body is required.")
+    if len(to) > 2000 or len(subject) > 998 or len(body) > 50000:
+        raise ValueError("The email exceeds the allowed size.")
+
+    message = EmailMessage()
+    message["To"] = to
+    message["Subject"] = subject
+    if cc:
+        message["Cc"] = str(cc).strip()
+    if bcc:
+        message["Bcc"] = str(bcc).strip()
+    if reply_to:
+        message["Reply-To"] = str(reply_to).strip()
+    message.set_content(body)
+
+    from pathlib import Path
+    documents_root = (Path.home() / "Documents" / "My AI Agent").resolve()
+    total_size = 0
+    for relative_path in attachments or []:
+        candidate = Path(str(relative_path))
+        if candidate.is_absolute() or ".." in candidate.parts:
+            raise ValueError("Invalid attachment path.")
+        target = documents_root / candidate
+        if target.is_symlink():
+            raise ValueError("Symbolic-link attachments are not allowed.")
+        target = target.resolve()
+        if not target.is_relative_to(documents_root) or not target.is_file():
+            raise ValueError(f"Attachment not found: {relative_path}")
+        if any(part.startswith(".") for part in target.relative_to(documents_root).parts):
+            raise ValueError("Hidden files cannot be attached.")
+        data = target.read_bytes()
+        total_size += len(data)
+        if total_size > 20 * 1024 * 1024:
+            raise ValueError("Combined attachments cannot exceed 20 MB.")
+        import mimetypes
+        content_type, _ = mimetypes.guess_type(target.name)
+        maintype, subtype = (content_type or "application/octet-stream").split("/", 1)
+        message.add_attachment(data, maintype=maintype, subtype=subtype, filename=target.name)
+
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
+    return get_gmail_service().users().messages().send(
+        userId="me", body={"raw": raw}
+    ).execute()
 
 
 def get_calendar_service():

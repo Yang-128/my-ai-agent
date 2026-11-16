@@ -482,20 +482,29 @@ function scrollToBottom() {
 }
 
 function renderMessageContent(message, text) {
-  const marker = "<!--CALENDAR_APPROVAL:";
-  const markerStart = text.indexOf(marker);
+  const markers = [
+    { marker: "<!--CALENDAR_APPROVAL:", type: "calendar" },
+    { marker: "<!--GMAIL_APPROVAL:", type: "gmail" }
+  ];
+  const foundMarkers = markers
+    .map(item => ({ ...item, start: text.indexOf(item.marker) }))
+    .filter(item => item.start !== -1)
+    .sort((a, b) => a.start - b.start);
+  const found = foundMarkers[0];
+  const markerStart = found ? found.start : -1;
+  let proposalType = found?.type || "";
   let visibleText = text;
   let proposal = null;
 
-  if (markerStart !== -1) {
-    const jsonStart = markerStart + marker.length;
+  if (found) {
+    const jsonStart = markerStart + found.marker.length;
     const markerEnd = text.indexOf("-->", jsonStart);
     if (markerEnd !== -1) {
       try {
         proposal = JSON.parse(text.slice(jsonStart, markerEnd));
         visibleText = text.slice(0, markerStart).trimEnd();
       } catch (error) {
-        console.error("Invalid calendar proposal payload", error);
+        console.error("Invalid approval proposal payload", error);
       }
     }
   }
@@ -508,7 +517,7 @@ function renderMessageContent(message, text) {
     message.textContent = visibleText;
   }
 
-  const pendingIds = proposal
+  const pendingIds = proposalType === "calendar" && proposal
     ? (Array.isArray(proposal.pending_ids)
         ? proposal.pending_ids
         : proposal.pending_id
@@ -516,7 +525,7 @@ function renderMessageContent(message, text) {
           : [])
     : [];
 
-  const proposals = proposal
+  const proposals = proposalType === "calendar" && proposal
     ? (Array.isArray(proposal.proposals)
         ? proposal.proposals
         : proposal.pending_id
@@ -868,6 +877,183 @@ function renderMessageContent(message, text) {
             card.appendChild(link);
           }
         });
+      } catch (error) {
+        status.textContent = error.message;
+        approve.disabled = false;
+        decline.disabled = false;
+      }
+    }
+
+    approve.addEventListener("click", () => decide(true));
+    decline.addEventListener("click", () => decide(false));
+    actions.append(approve, decline);
+    card.append(actions, status);
+    message.appendChild(card);
+  }
+
+  if (proposalType === "gmail" && proposal?.pending_id && proposal?.message) {
+    const card = document.createElement("section");
+    card.className = "calendar-approval-card";
+    card.style.cssText = "margin-top:14px;padding:16px;border:1px solid var(--border-color,#888);border-radius:12px";
+
+    const heading = document.createElement("strong");
+    heading.textContent = "Review and edit email before sending";
+    card.appendChild(heading);
+
+    const email = proposal.message;
+    const fields = {};
+    const fieldSpecs = [
+      ["To", "to", "email"],
+      ["Cc", "cc", "text"],
+      ["Bcc", "bcc", "text"],
+      ["Reply-To", "reply_to", "email"],
+      ["Subject", "subject", "text"]
+    ];
+
+    function addField(labelText, key, type = "text") {
+      const wrapper = document.createElement("label");
+      wrapper.style.cssText = "display:block;margin-top:10px;font-size:13px";
+      wrapper.textContent = labelText;
+      const input = document.createElement("input");
+      input.type = type;
+      input.value = email[key] || "";
+      input.style.cssText = "display:block;box-sizing:border-box;width:100%;margin-top:4px;padding:9px;border:1px solid var(--border-color,#888);border-radius:7px;background:var(--input-bg,var(--background));color:inherit;font:inherit";
+      input.autocomplete = "off";
+      wrapper.appendChild(input);
+      card.appendChild(wrapper);
+      fields[key] = input;
+    }
+
+    fieldSpecs.forEach(([label, key, type]) => addField(label, key, type));
+
+    const bodyLabel = document.createElement("label");
+    bodyLabel.textContent = "Message";
+    bodyLabel.style.cssText = "display:block;margin-top:12px;font-size:13px";
+    const bodyInput = document.createElement("textarea");
+    bodyInput.value = email.body || "";
+    bodyInput.rows = 8;
+    bodyInput.style.cssText = "display:block;box-sizing:border-box;width:100%;margin-top:4px;padding:10px;border:1px solid var(--border-color,#888);border-radius:7px;background:var(--input-bg,var(--background));color:inherit;font:inherit;resize:vertical";
+    bodyLabel.appendChild(bodyInput);
+    card.appendChild(bodyLabel);
+
+    const attachmentHeading = document.createElement("strong");
+    attachmentHeading.textContent = "Attachments";
+    attachmentHeading.style.cssText = "display:block;margin-top:16px";
+    card.appendChild(attachmentHeading);
+
+    const attachmentHelp = document.createElement("p");
+    attachmentHelp.textContent = "Select files from Documents / My AI Agent. You can add or remove attachments before sending.";
+    attachmentHelp.style.cssText = "margin:5px 0;font-size:12px;opacity:.75";
+    card.appendChild(attachmentHelp);
+
+    const attachmentList = document.createElement("div");
+    attachmentList.style.cssText = "max-height:220px;overflow:auto;border:1px solid var(--border-color,#888);border-radius:8px;padding:8px";
+    card.appendChild(attachmentList);
+
+    const selectedAttachments = new Set(
+      Array.isArray(email.attachments) ? email.attachments : []
+    );
+
+    function renderAttachments(items) {
+      attachmentList.replaceChildren();
+      const available = new Map(items.map(item => [item.path, item]));
+      for (const path of selectedAttachments) {
+        if (!available.has(path)) {
+          available.set(path, { path, name: path, size: null });
+        }
+      }
+
+      if (!available.size) {
+        const empty = document.createElement("p");
+        empty.textContent = "No attachable documents found.";
+        empty.style.cssText = "margin:4px;font-size:13px;opacity:.7";
+        attachmentList.appendChild(empty);
+        return;
+      }
+
+      for (const item of available.values()) {
+        const label = document.createElement("label");
+        label.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 2px;font-size:13px;overflow-wrap:anywhere";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = selectedAttachments.has(item.path);
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) selectedAttachments.add(item.path);
+          else selectedAttachments.delete(item.path);
+        });
+        const name = document.createElement("span");
+        name.textContent = item.name;
+        name.style.flex = "1";
+        const size = document.createElement("span");
+        size.textContent = Number.isFinite(item.size)
+          ? `${(item.size / 1024).toFixed(1)} KB`
+          : "";
+        size.style.opacity = ".65";
+        label.append(checkbox, name, size);
+        attachmentList.appendChild(label);
+      }
+    }
+
+    renderAttachments([]);
+    fetch("/api/google/gmail/attachments")
+      .then(response => {
+        if (!response.ok) throw new Error("Could not load available documents.");
+        return response.json();
+      })
+      .then(data => renderAttachments(Array.isArray(data.items) ? data.items : []))
+      .catch(error => {
+        const warning = document.createElement("p");
+        warning.textContent = error.message;
+        warning.style.cssText = "font-size:12px;color:var(--danger-color,#c44)";
+        attachmentList.appendChild(warning);
+      });
+
+    const actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:14px";
+
+    const approve = document.createElement("button");
+    approve.type = "button";
+    approve.textContent = "Approve and send";
+    const decline = document.createElement("button");
+    decline.type = "button";
+    decline.textContent = "Decline";
+    decline.className = "secondary";
+
+    const status = document.createElement("p");
+    status.style.cssText = "margin:10px 0 0;white-space:pre-wrap";
+    status.hidden = true;
+
+    async function decide(approved) {
+      approve.disabled = true;
+      decline.disabled = true;
+      status.hidden = false;
+      status.textContent = approved ? "Sending email…" : "Declining email…";
+
+      try {
+        const response = await fetch("/api/google/gmail/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pending_id: proposal.pending_id,
+            approved,
+            message: approved ? {
+              to: fields.to.value.trim(),
+              cc: fields.cc.value.trim(),
+              bcc: fields.bcc.value.trim(),
+              reply_to: fields.reply_to.value.trim(),
+              subject: fields.subject.value.trim(),
+              body: bodyInput.value,
+              attachments: [...selectedAttachments]
+            } : undefined
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "Could not process this email.");
+
+        actions.remove();
+        status.textContent = approved
+          ? `Email sent to ${data.recipient}. ${data.attachment_count || 0} attachment(s) included.`
+          : "Email declined; nothing was sent.";
       } catch (error) {
         status.textContent = error.message;
         approve.disabled = false;
@@ -2002,7 +2188,7 @@ document.getElementById("refresh-files").addEventListener("click", () => {
 });
 
 
-// Google Calendar connection controls
+// Google Calendar and Gmail connection controls
 async function refreshGoogleCalendarStatus() {
   const status = document.getElementById("google-calendar-status");
   const connect = document.getElementById("google-calendar-connect");
@@ -2014,12 +2200,37 @@ async function refreshGoogleCalendarStatus() {
 
     if (data.connected) {
       status.textContent = `Connected: ${data.calendar}${data.timezone ? ` (${data.timezone})` : ""}`;
-      connect.textContent = "Disconnect Google Calendar";
+      connect.textContent = "Disconnect Google account";
     } else {
       status.textContent = data.error
         ? `Not connected: ${data.error}`
         : "Google Calendar is not connected.";
-      connect.textContent = "Connect Google Calendar";
+      connect.textContent = "Connect Google account";
+    }
+  } catch (error) {
+    status.textContent = error.message;
+  }
+}
+
+async function refreshGoogleGmailStatus() {
+  const status = document.getElementById("google-gmail-status");
+  const connect = document.getElementById("google-gmail-connect");
+
+  try {
+    const response = await fetch("/api/google/gmail/status");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "Could not check Gmail.");
+
+    if (data.connected) {
+      status.textContent = `Connected: ${data.email || "Gmail account"}`;
+      connect.textContent = "Gmail connected";
+      connect.disabled = true;
+    } else {
+      status.textContent = data.error
+        ? `Not connected: ${data.error}`
+        : "Gmail is not connected.";
+      connect.textContent = "Connect Google account";
+      connect.disabled = false;
     }
   } catch (error) {
     status.textContent = error.message;
@@ -2031,13 +2242,13 @@ document.getElementById("google-calendar-connect")?.addEventListener("click", as
   const status = document.getElementById("google-calendar-status");
 
   if (button.textContent.includes("Disconnect")) {
-    if (!confirm("Disconnect Google Calendar from My AI Agent?")) return;
+    if (!confirm("Disconnect the Google account from My AI Agent? This disconnects both Calendar and Gmail.")) return;
 
     try {
       const response = await fetch("/api/google/calendar/disconnect", { method: "POST" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Disconnect failed.");
-      await refreshGoogleCalendarStatus();
+      await Promise.all([refreshGoogleCalendarStatus(), refreshGoogleGmailStatus()]);
     } catch (error) {
       status.textContent = error.message;
     }
@@ -2047,4 +2258,9 @@ document.getElementById("google-calendar-connect")?.addEventListener("click", as
   window.location.href = "/api/google/connect";
 });
 
+document.getElementById("google-gmail-connect")?.addEventListener("click", () => {
+  window.location.href = "/api/google/connect";
+});
+
 refreshGoogleCalendarStatus();
+refreshGoogleGmailStatus();

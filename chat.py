@@ -20,6 +20,7 @@ from storage import (
 from tools import get_all_tool_definitions, execute_tool
 from providers import get_provider_client, get_provider_model
 from calendar_approval import create_pending_calendar_actions
+from gmail_approval import create_pending_gmail_message
 
 router = APIRouter()
 
@@ -249,6 +250,35 @@ def ai_decide_extensions(message, provider, model, available_tools, conversation
         if isinstance(name, str) and name in available_names
     ))
 
+    # Web research requires both discovery and page extraction.
+    if "mcp_web_search" in required and "mcp_web_fetch" in available_names:
+        if "mcp_web_fetch" not in required:
+            required.append("mcp_web_fetch")
+
+    # Ensure explicit document and email requests include their required tools.
+    message_lower = message.lower()
+    document_intent = (
+        any(word in message_lower for word in (
+            "create", "make", "generate", "prepare", "produce", "export"
+        ))
+        and any(word in message_lower for word in (
+            "document", "pdf", "report", "spreadsheet", "file", "xlsx",
+            "docx", "pptx"
+        ))
+    )
+    if document_intent and "mcp_mac_create_document" in available_names:
+        if "mcp_mac_create_document" not in required:
+            required.append("mcp_mac_create_document")
+
+    email_intent = (
+        any(word in message_lower for word in ("email", "gmail"))
+        or "send it to" in message_lower
+        or "send this to" in message_lower
+    )
+    if email_intent and "mcp_send_gmail_message" in available_names:
+        if "mcp_send_gmail_message" not in required:
+            required.append("mcp_send_gmail_message")
+
     return {
         "needs_extensions": bool(required),
         "required_extensions": required,
@@ -426,7 +456,7 @@ def chat(request: ChatRequest):
                     "limit per conversation. Every change must be presented together for "
                     "explicit user approval in chat before execution. Never claim a change "
                     "has happened before approval. "
-                    "Explain what you did clearly. "
+                    "WEB SEARCH AND SOURCE EXTRACTION RULES: When the user asks for current information or web research, use mcp_web_search to find sources. Prefer official websites and primary sources. Use site:domain.com queries when the user specifies a website or organization. Then call mcp_web_fetch on relevant result URLs to inspect the actual page content. Follow useful links returned by web_fetch, including PDF calendars and documents, by calling web_fetch on those URLs. Do not rely only on search snippets when the source page can be opened. For school calendars, extract the actual dates and event names, distinguish holidays and no-school days from other events, and preserve the school year. Never infer dates that are not supported by the retrieved source. Include clickable source URLs in your answer and identify when a source could not be accessed. Explain what you did clearly. "
                     "You may use conversation history provided in the "
                     "messages to maintain context. Never claim to remember "
                     "conversations that are not included in the messages. "
@@ -444,7 +474,18 @@ def chat(request: ChatRequest):
                     "array; each slide has a title and body. For other formats, provide the "
                     "document text as content. Use the default save folder unless the user "
                     "specifies another folder. Never claim a file was saved unless the tool "
-                    "returns a successful result. Tell the user the exact saved path."
+                    "returns a successful result. Tell the user the exact saved path. "
+                    "EMAIL AND ATTACHMENT RULES: When the user asks to email a document, "
+                    "first create the requested document with mcp_mac_create_document. "
+                    "Wait for that tool result before calling mcp_send_gmail_message; "
+                    "never call document creation and email preparation in the same tool-call "
+                    "batch. Include the created file in the email tool's attachments array, "
+                    "using its path relative to ~/Documents/My AI Agent. If the user asks "
+                    "for today's date in the subject or message, call mcp_get_current_time "
+                    "first and use its returned local date. Never guess the date or use a "
+                    "stale date. The email tool prepares a draft only. The user must be able "
+                    "to edit To, Cc, Bcc, Reply-To, Subject, Body, and attachments, then "
+                    "explicitly approve sending. Never claim an email was sent before approval."
                 ),
             }
 
@@ -544,13 +585,14 @@ def chat(request: ChatRequest):
 
             result = None
             calendar_proposal = None
-            max_tool_rounds = 5
+            gmail_proposal = None
+            max_tool_rounds = 8
 
             for round_number in range(max_tool_rounds + 1):
                 request_args = {
                     "model": selected_model,
                     "messages": [system_message, *messages],
-                    "max_tokens": 4096,
+                    "max_tokens": 2048,
                 }
                 if tool_calling_supported:
                     request_args["tools"] = available_tools
@@ -635,38 +677,93 @@ def chat(request: ChatRequest):
                     or call.function.name == "mcp_create_calendar_events"
                 ]
 
-                if calendar_calls:
-                    try:
-                        actions = []
+                gmail_calls = [
+                    call for call in tool_calls
+                    if call.function.name == "mcp_send_gmail_message"
+                ]
 
-                        for call in calendar_calls:
-                            arguments = json.loads(call.function.arguments)
+                if calendar_calls or gmail_calls:
+                    approval_call_ids = {
+                        call.id for call in calendar_calls + gmail_calls
+                    }
+                    ordinary_calls = [
+                        call for call in tool_calls
+                        if call.id not in approval_call_ids
+                    ]
 
-                            if call.function.name == "mcp_create_calendar_events":
-                                events = arguments.get("events")
-                                if not isinstance(events, list) or not events:
-                                    raise ValueError("The calendar batch must contain at least one event.")
+                    # Finish document/file creation before preparing an email
+                    # that may attach one of those newly created files.
+                    if gmail_calls and ordinary_calls:
+                        messages.append(result.model_dump(exclude_none=True))
 
-                                for event in events:
-                                    if not isinstance(event, dict):
-                                        raise ValueError("Each calendar change must be an object.")
-                                    event = dict(event)
-                                    action = event.pop("action", "create")
-                                    if action not in {"create", "update", "delete"}:
-                                        raise ValueError(f"Unsupported calendar action: {action}")
-                                    actions.append((event, action))
+                        for call in tool_calls:
+                            if call.id in approval_call_ids:
+                                output = (
+                                    "Finish the other requested tools first. "
+                                    "Then call send_gmail_message again, using the "
+                                    "created file's path relative to ~/Documents/My AI Agent "
+                                    "in the attachments list. Do not prepare the email yet."
+                                )
                             else:
-                                actions.append((
-                                    arguments,
-                                    calendar_actions[call.function.name],
-                                ))
+                                try:
+                                    arguments = json.loads(call.function.arguments)
+                                    output = execute_tool(call.function.name, arguments)
+                                except Exception as error:
+                                    output = f"Tool error: {error}"
 
-                        calendar_proposal = create_pending_calendar_actions(
-                            actions,
-                            request.conversation_id,
-                        )
-                    except Exception as error:
-                        calendar_proposal = {"error": str(error)}
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": call.id,
+                                "content": str(output),
+                            })
+
+                        continue
+
+                    if calendar_calls:
+                        try:
+                            actions = []
+
+                            for call in calendar_calls:
+                                arguments = json.loads(call.function.arguments)
+
+                                if call.function.name == "mcp_create_calendar_events":
+                                    events = arguments.get("events")
+                                    if not isinstance(events, list) or not events:
+                                        raise ValueError("The calendar batch must contain at least one event.")
+
+                                    for event in events:
+                                        if not isinstance(event, dict):
+                                            raise ValueError("Each calendar change must be an object.")
+                                        event = dict(event)
+                                        action = event.pop("action", "create")
+                                        if action not in {"create", "update", "delete"}:
+                                            raise ValueError(f"Unsupported calendar action: {action}")
+                                        actions.append((event, action))
+                                else:
+                                    actions.append((
+                                        arguments,
+                                        calendar_actions[call.function.name],
+                                    ))
+
+                            calendar_proposal = create_pending_calendar_actions(
+                                actions,
+                                request.conversation_id,
+                            )
+                        except Exception as error:
+                            calendar_proposal = {"error": str(error)}
+
+                    if gmail_calls:
+                        try:
+                            if len(gmail_calls) != 1:
+                                raise ValueError("Please prepare one email at a time.")
+                            arguments = json.loads(gmail_calls[0].function.arguments)
+                            gmail_proposal = create_pending_gmail_message(
+                                arguments,
+                                request.conversation_id,
+                            )
+                        except Exception as error:
+                            gmail_proposal = {"error": str(error)}
+
                     break
 
                 messages.append(result.model_dump(exclude_none=True))
@@ -685,57 +782,101 @@ def chat(request: ChatRequest):
                     })
 
             if result is None:
-                response = client.chat.completions.with_raw_response.create(
-                    model=selected_model,
-                    messages=[system_message, *messages],
-                    max_tokens=4096,
-                )
-
-                headers = response.headers
-                completion = response.parse()
-
-                save_provider_headers(request.provider, selected_model, headers)
-
-                input_tokens = 0
-                output_tokens = 0
-
-                if completion.usage:
-                    input_tokens = completion.usage.prompt_tokens or 0
-                    output_tokens = completion.usage.completion_tokens or 0
-
-                    turn_input_tokens += input_tokens
-                    turn_output_tokens += output_tokens
-                    has_turn_usage = True
-
-                    record_usage(
-                        request.provider,
-                        selected_model,
-                        tokens_used=input_tokens + output_tokens,
+                try:
+                    response = client.chat.completions.with_raw_response.create(
+                        model=selected_model,
+                        messages=[system_message, *messages],
+                        max_tokens=2048,
                     )
 
-                record_provider_request(
-                    request.provider,
-                    selected_model,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                )
+                    headers = response.headers
+                    completion = response.parse()
 
-                result = completion.choices[0].message
+                    save_provider_headers(request.provider, selected_model, headers)
+
+                    input_tokens = 0
+                    output_tokens = 0
+
+                    if completion.usage:
+                        input_tokens = completion.usage.prompt_tokens or 0
+                        output_tokens = completion.usage.completion_tokens or 0
+
+                        turn_input_tokens += input_tokens
+                        turn_output_tokens += output_tokens
+                        has_turn_usage = True
+
+                        record_usage(
+                            request.provider,
+                            selected_model,
+                            tokens_used=input_tokens + output_tokens,
+                        )
+
+                    record_provider_request(
+                        request.provider,
+                        selected_model,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                    )
+
+                    result = completion.choices[0].message
+                except Exception as final_error:
+                    # Preserve useful tool results if the provider refuses
+                    # the final synthesis request after the tool-call limit.
+                    retrieved = [
+                        str(item.get("content", "")).strip()
+                        for item in messages
+                        if item.get("role") == "tool" and item.get("content")
+                    ]
+                    retrieved = retrieved[-5:]
+                    fallback = (
+                        "I retrieved information, but the model could not "
+                        "complete its final summary. Here are the latest tool results:\n\n"
+                        + "\n\n".join(retrieved)
+                    )
+                    if not retrieved:
+                        fallback = (
+                            "I reached the tool-call limit and could not "
+                            "generate a final response. Please try a narrower request."
+                        )
+                    print(
+                        f"Final synthesis failed [{request.provider}/{selected_model}]: "
+                        f"{final_error}",
+                        flush=True,
+                    )
+                    result = type("FallbackMessage", (), {"content": fallback})()
+
+            proposal_parts = []
 
             if calendar_proposal:
                 if calendar_proposal.get("error"):
-                    full_reply = "I couldn't prepare that calendar proposal: " + calendar_proposal["error"]
+                    proposal_parts.append(
+                        "I couldn't prepare that calendar proposal: " + calendar_proposal["error"]
+                    )
                 else:
                     event_count = len(calendar_proposal.get("pending_ids", []))
-                    full_reply = (
+                    proposal_parts.append(
                         f"I've prepared {event_count} Google Calendar change(s). "
                         "Review the details and approve or decline the batch below.\\n\\n"
                         "<!--CALENDAR_APPROVAL:"
                         + json.dumps(calendar_proposal, ensure_ascii=False)
                         + "-->"
                     )
-            else:
-                full_reply = result.content or ""
+
+            if gmail_proposal:
+                if gmail_proposal.get("error"):
+                    proposal_parts.append(
+                        "I couldn't prepare that email: " + gmail_proposal["error"]
+                    )
+                else:
+                    proposal_parts.append(
+                        "I've prepared an email. Review the recipient, subject, and message, "
+                        "then approve or decline sending it.\\n\\n"
+                        "<!--GMAIL_APPROVAL:"
+                        + json.dumps(gmail_proposal, ensure_ascii=False)
+                        + "-->"
+                    )
+
+            full_reply = "\\n\\n".join(proposal_parts) if proposal_parts else (result.content or "")
 
             for index in range(0, len(full_reply), 40):
                 yield full_reply[index:index + 40]

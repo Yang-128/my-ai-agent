@@ -19,3 +19,5 @@ pending_calendar_events.json
 node_modules/
 src-tauri/target/
 src-tauri/gen/
+
+pending_gmail_messages.json

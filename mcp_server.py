@@ -6,6 +6,7 @@ import platform
 import os
 import re
 from storage import list_conversations, get_conversation
+from web_search import search_web, fetch_webpage
 from google_integrations import (
     list_calendar_events,
     get_calendar_event,
@@ -157,6 +158,30 @@ def delete_calendar_event(event_id: str, summary: str = "") -> str:
         "action": "delete",
         "event_id": event_id,
         "summary": summary,
+    }, ensure_ascii=False)
+
+
+@mcp.tool()
+def send_gmail_message(
+    to: str,
+    subject: str,
+    body: str,
+    cc: str = "",
+    bcc: str = "",
+    reply_to: str = "",
+    attachments: list[str] | None = None,
+) -> str:
+    """Prepare an email for user review and explicit approval. Attach files created by mac_create_document by passing their paths relative to ~/Documents/My AI Agent (for example, ["Breakfast report.xlsx"]). The user can edit recipients, subject, body, and attachments before approving. Never claim the email has been sent before approval."""
+    import json
+    return json.dumps({
+        "requires_user_approval": True,
+        "to": to,
+        "cc": cc,
+        "bcc": bcc,
+        "reply_to": reply_to,
+        "subject": subject,
+        "body": body,
+        "attachments": attachments or [],
     }, ensure_ascii=False)
 
 
@@ -860,6 +885,18 @@ def mac_create_document(
         presentation.save(str(target))
 
     return f"Document created successfully: {target}"
+
+
+@mcp.tool()
+def web_search(query: str, max_results: int = 5) -> str:
+    """Search the public web. Returns result titles, URLs, and snippets. Supports site: filters. Use web_fetch to read relevant result pages and documents."""
+    return search_web(query, max_results)
+
+
+@mcp.tool()
+def web_fetch(url: str, max_chars: int = 18000) -> str:
+    """Open a public HTTP/HTTPS webpage or PDF and extract its readable text. Returns the final URL, page title or PDF page numbers, extracted text, and relevant links. Use this after web_search or when the user supplies a URL."""
+    return fetch_webpage(url, max_chars)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@ import binascii
 import re
 import traceback
 from pathlib import Path
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -22,7 +24,48 @@ from providers import get_provider_client, get_provider_model
 from calendar_approval import create_pending_calendar_actions
 from gmail_approval import create_pending_gmail_message
 
+
 router = APIRouter()
+
+
+def execute_chat_tool(name, arguments, user_message):
+    arguments = dict(arguments)
+
+    if name == "mcp_search_calendar_events":
+        weekdays = {
+            "monday": 0,
+            "tuesday": 1,
+            "wednesday": 2,
+            "thursday": 3,
+            "friday": 4,
+            "saturday": 5,
+            "sunday": 6,
+        }
+        match = re.search(
+            r"\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+            user_message.lower(),
+        )
+        if match:
+            zone = ZoneInfo("America/Vancouver")
+            today = datetime.now(zone).date()
+            target_weekday = weekdays[match.group(1)]
+            monday = today - timedelta(days=today.weekday())
+            target_date = monday + timedelta(days=7 + target_weekday)
+
+            start = datetime.combine(target_date, time.min, tzinfo=zone)
+            end = start + timedelta(days=1)
+            arguments["time_min"] = start.isoformat()
+            arguments["time_max"] = end.isoformat()
+            arguments["query"] = ""
+
+            print(
+                f"[CALENDAR DATE] Resolved 'next {match.group(1)}' "
+                f"to {target_date.isoformat()} ({match.group(1)}); "
+                f"searching {start.isoformat()} to {end.isoformat()}",
+                flush=True,
+            )
+
+    return execute_tool(name, arguments)
 
 
 def format_provider_error(error):
@@ -250,6 +293,35 @@ def ai_decide_extensions(message, provider, model, available_tools, conversation
         if isinstance(name, str) and name in available_names
     ))
 
+    # Calendar requests always need the authoritative clock. Searching or
+    # changing events also requires the calendar search tool; changes require
+    # the corresponding write tool and event details when available.
+    calendar_intent = any(term in message.lower() for term in (
+        "calendar", "event", "appointment", "meeting", "schedule",
+        "physics test", "test next", "next monday", "next tuesday",
+        "next wednesday", "next thursday", "next friday",
+        "next saturday", "next sunday", "tomorrow", "today",
+    ))
+    if calendar_intent:
+        calendar_tools = [
+            "mcp_get_current_time",
+            "mcp_search_calendar_events",
+            "mcp_get_calendar_event_details",
+        ]
+        if any(term in message.lower() for term in (
+            "update", "change", "move", "reschedule", "delete", "cancel",
+            "create", "add", "schedule",
+        )):
+            calendar_tools.extend((
+                "mcp_update_calendar_event",
+                "mcp_delete_calendar_event",
+                "mcp_create_calendar_events",
+            ))
+
+        for name in calendar_tools:
+            if name in available_names and name not in required:
+                required.append(name)
+
     # Web research requires both discovery and page extraction.
     if "mcp_web_search" in required and "mcp_web_fetch" in available_names:
         if "mcp_web_fetch" not in required:
@@ -409,34 +481,38 @@ def chat(request: ChatRequest):
             ]
             tool_calling_supported = bool(available_tools)
 
+            try:
+                calendar_reference_time = execute_tool("mcp_get_current_time", {})
+            except Exception as error:
+                calendar_reference_time = f"UNAVAILABLE: {error}"
+
             system_message = {
                 "role": "system",
                 "content": (
                     "You are a helpful personal AI assistant. "
                     "Use available tools when useful. "
+                    "AUTHORITATIVE CURRENT LOCAL DATE/TIME: "
+                    + calendar_reference_time
+                    + ". This value is injected by the application for this request. "
+                    "Use it as the source of truth for all relative dates. "
                     "You can use MCP tools to interact with connected "
                     "services and files. "
-                    "CALENDAR DATE INTERPRETATION RULES: Before creating calendar "
-                    "events from relative dates, call mcp_get_current_time and use "
-                    "its returned local date and timezone as the reference. Never "
-                    "assume the model's training date or guess today's date. Resolve "
-                    "phrases such as 'today', 'tomorrow', 'by Monday', 'on Wednesday', "
-                    "'next Tuesday', 'the end of this week', and month/day dates into "
-                    "explicit calendar dates. NEVER calculate weekdays by intuition. "
-                    "Use the weekday included in mcp_get_current_time, calculate dates "
-                    "with calendar arithmetic, and verify every resolved YYYY-MM-DD "
-                    "against its actual weekday before proposing an event. For example, "
-                    "2026-11-16 is Monday, 2026-11-17 is Tuesday, 2026-11-18 is "
-                    "Wednesday, and 2026-11-20 is Friday. If a date and weekday "
-                    "conflict, correct the date before creating the proposal. "
-                    "explicit calendar dates. Interpret weekday-only references as "
-                    "the next occurrence of that weekday, including today if it is "
-                    "that weekday and the user clearly means today. Interpret 'by "
-                    "Monday' as a deadline on Monday, not as a recurring event. "
-                    "Interpret 'end of this week' as the final weekday (Friday) of "
-                    "the current Monday-to-Friday school/work week. Preserve the "
-                    "user's stated year; if no year is given for a month/day date, "
-                    "choose the next upcoming occurrence. "
+                    "CALENDAR DATE INTERPRETATION RULES: The authoritative "
+                    "current local date and time are injected above by the "
+                    "application in America/Vancouver time. Use that value for "
+                    "all date calculations; do not rely on the model's assumed date. "
+                    "Resolve relative dates with calendar arithmetic and verify "
+                    "that every calculated date matches its stated weekday. "
+                    "'Next Tuesday' means Tuesday in the next calendar week. "
+                    "For example, when today is Monday 2026-11-16, next Tuesday "
+                    "is 2026-11-24, not 2026-11-17. A weekday without 'next' "
+                    "means its next occurrence strictly after today, unless the "
+                    "user clearly means today. Never invent or silently change "
+                    "a date. If wording is ambiguous, ask for clarification. "
+                    "Interpret 'by Monday' as a deadline on Monday. Interpret "
+                    "'end of this week' as Friday of the current Monday-to-Friday "
+                    "week. Preserve a stated year; if no year is given for a "
+                    "month/day date, choose its next upcoming occurrence. "
                     "For phrases such as 'every Monday', 'every Monday, Friday and "
                     "Saturday', or 'Tuesdays after school', recognize that these are "
                     "recurring schedules, not single events. Do not silently turn "
@@ -454,6 +530,20 @@ def chat(request: ChatRequest):
                     "For Google Calendar, use "
                     "mcp_search_calendar_events and mcp_get_calendar_event_details "
                     "to inspect events before answering questions or proposing changes. "
+                    "When searching for events on a particular day, search the full local "
+                    "calendar-day interval: from that day's local midnight to the next "
+                    "day's local midnight, using ISO 8601 timestamps with timezone offsets. "
+                    "Do not search only a narrow time window when the user gives a day. "
+                    "Search by date range without a title query first; use a title query "
+                    "only as an additional search if needed. Google Calendar all-day events "
+                    "use start.date and end.date, not start.dateTime and end.dateTime. "
+                    "Always inspect both date-only and dateTime fields when matching events. "
+                    "For all-day events, start.date is inclusive and end.date is "
+                    "exclusive. An all-day event overlaps the requested date when "
+                    "start.date is on or before that date and end.date is after it; "
+                    "do not require start.date to equal the requested date, because "
+                    "multi-day events may have started earlier. Do not reject an event "
+                    "because it has no dateTime or clock time. "
                     "Use mcp_create_calendar_events for ALL event creation requests, "
                     "including a single event, using an events array. Each item must "
                     "include action='create' and the relevant event fields. Use "
@@ -713,7 +803,7 @@ def chat(request: ChatRequest):
                             else:
                                 try:
                                     arguments = json.loads(call.function.arguments)
-                                    output = execute_tool(call.function.name, arguments)
+                                    output = execute_chat_tool(call.function.name, arguments, message)
                                 except Exception as error:
                                     output = f"Tool error: {error}"
 
@@ -752,6 +842,87 @@ def chat(request: ChatRequest):
                                         calendar_actions[call.function.name],
                                     ))
 
+                            # Load the original event before preparing an update.
+                            # This keeps unchanged fields populated in the approval editor.
+                            for arguments, action in actions:
+                                if action != "update":
+                                    continue
+
+                                # Resolve "next weekday" once; apply it after
+                                # loading the original event so omitted times are preserved.
+                                weekdays = {
+                                    "monday": 0, "tuesday": 1, "wednesday": 2,
+                                    "thursday": 3, "friday": 4, "saturday": 5,
+                                    "sunday": 6,
+                                }
+                                weekday_match = re.search(
+                                    r"\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+                                    message.lower(),
+                                )
+                                target_date = None
+                                if weekday_match:
+                                    zone = ZoneInfo("America/Vancouver")
+                                    today = datetime.now(zone).date()
+                                    target_weekday = weekdays[weekday_match.group(1)]
+                                    monday = today - timedelta(days=today.weekday())
+                                    target_date = monday + timedelta(days=7 + target_weekday)
+
+                                event_id = str(arguments.get("event_id", "")).strip()
+                                details_raw = execute_tool(
+                                    "mcp_get_calendar_event_details",
+                                    {"event_id": event_id},
+                                )
+                                details = (
+                                    json.loads(details_raw)
+                                    if isinstance(details_raw, str)
+                                    else details_raw
+                                )
+                                if not isinstance(details, dict):
+                                    raise ValueError(
+                                        "Could not retrieve the existing calendar event."
+                                    )
+
+                                for field in ("summary", "description", "location", "recurrence"):
+                                    if not arguments.get(field):
+                                        default = [] if field == "recurrence" else ""
+                                        arguments[field] = details.get(field, default) or default
+
+                                existing_start = details.get("start", {})
+                                existing_end = details.get("end", {})
+
+                                if existing_start.get("dateTime"):
+                                    if not arguments.get("start_time"):
+                                        arguments["start_time"] = existing_start["dateTime"]
+                                    if not arguments.get("end_time"):
+                                        arguments["end_time"] = existing_end.get("dateTime", "")
+                                elif existing_start.get("date"):
+                                    if not arguments.get("start_date"):
+                                        arguments["start_date"] = existing_start["date"]
+                                    if not arguments.get("end_date"):
+                                        arguments["end_date"] = existing_end.get("date", "")
+
+                                if target_date:
+                                    if arguments.get("start_time") and arguments.get("end_time"):
+                                        for field in ("start_time", "end_time"):
+                                            parsed = datetime.fromisoformat(
+                                                arguments[field].replace("Z", "+00:00")
+                                            )
+                                            parsed = (
+                                                parsed.replace(tzinfo=zone)
+                                                if parsed.tzinfo is None
+                                                else parsed.astimezone(zone)
+                                            )
+                                            arguments[field] = parsed.replace(
+                                                year=target_date.year,
+                                                month=target_date.month,
+                                                day=target_date.day,
+                                            ).isoformat()
+                                    elif arguments.get("start_date") and arguments.get("end_date"):
+                                        arguments["start_date"] = target_date.isoformat()
+                                        arguments["end_date"] = (
+                                            target_date + timedelta(days=1)
+                                        ).isoformat()
+
                             print(f"[CALENDAR DEBUG] Preparing {len(actions)} actions.", flush=True)
                             calendar_proposal = create_pending_calendar_actions(
                                 actions,
@@ -780,7 +951,7 @@ def chat(request: ChatRequest):
                 for call in tool_calls:
                     try:
                         arguments = json.loads(call.function.arguments)
-                        output = execute_tool(call.function.name, arguments)
+                        output = execute_chat_tool(call.function.name, arguments, message)
                     except Exception as error:
                         output = f"Tool error: {error}"
 

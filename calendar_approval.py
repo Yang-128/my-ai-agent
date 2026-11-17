@@ -92,7 +92,7 @@ def create_pending_calendar_action(arguments, conversation_id, action):
             or arguments.get("title")
             or arguments.get("task")
             or arguments.get("name")
-            or "Untitled event"
+            or ("Untitled event" if action == "create" else "")
         ).strip()
         start_time = str(arguments.get("start_time", "")).strip()
         end_time = str(arguments.get("end_time", "")).strip()

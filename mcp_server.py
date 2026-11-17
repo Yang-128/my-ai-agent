@@ -1,5 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 import shutil
 import platform
@@ -68,7 +69,7 @@ def search_calendar_events(
     query: str = "",
     max_results: int = 50,
 ) -> str:
-    """Search Google Calendar events by date range and/or title keywords. Use ISO 8601 timestamps with timezone offsets for date boundaries."""
+    """Search Google Calendar events by date range and/or title keywords. For a full local day, use local midnight through the following local midnight as ISO 8601 timestamps with timezone offsets. All-day events are returned with start.date and end.date; timed events use start.dateTime and end.dateTime. Search by date range without a title query first when looking for events on a particular day."""
     import json
     events = list_calendar_events(
         time_min=time_min,
@@ -160,7 +161,7 @@ def send_gmail_message(
 @mcp.tool()
 def get_current_time() -> str:
     """Get the current local date, weekday, and time. Use the weekday as a cross-check."""
-    now = datetime.now().astimezone()
+    now = datetime.now(ZoneInfo("America/Vancouver"))
     return f"{now.strftime('%A, %Y-%m-%d %H:%M:%S %Z')} ({now.isoformat()})"
 
 

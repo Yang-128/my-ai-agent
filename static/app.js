@@ -542,29 +542,49 @@ function renderMessageContent(message, text) {
     heading.textContent = `Review ${proposals.length} calendar change${proposals.length === 1 ? "" : "s"}`;
     card.appendChild(heading);
 
+    const CALENDAR_TIME_ZONE = "America/Vancouver";
+
+    function getCalendarDateParts(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: CALENDAR_TIME_ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23"
+      }).formatToParts(date);
+      return Object.fromEntries(parts.map(part => [part.type, part.value]));
+    }
+
     function formatDate(value, allDay = false) {
       if (!value) return "";
       if (allDay) {
         const parts = value.split("-").map(Number);
-        const date = new Date(parts[0], parts[1] - 1, parts[2]);
+        const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12));
         return Number.isNaN(date.getTime())
           ? value
-          : date.toLocaleDateString([], { dateStyle: "full" });
+          : date.toLocaleDateString([], { timeZone: "UTC", dateStyle: "full" });
       }
       const date = new Date(value);
       return Number.isNaN(date.getTime())
         ? value
-        : date.toLocaleString([], { dateStyle: "full", timeStyle: "short" });
+        : date.toLocaleString([], {
+            timeZone: CALENDAR_TIME_ZONE,
+            dateStyle: "full",
+            timeStyle: "short"
+          });
     }
 
     const proposalTimeInputs = [];
 
     function toDateTimeLocal(value) {
       if (!value) return "";
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return "";
-      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-      return local.toISOString().slice(0, 16);
+      const parts = getCalendarDateParts(value);
+      if (!parts) return "";
+      return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
     }
 
     proposals.forEach((item, index) => {
@@ -739,6 +759,7 @@ function renderMessageContent(message, text) {
           wrap.append(hour, minute, period);
           return {
             element: wrap,
+            controls: [hour, minute, period],
             hasInvalidMinute() {
               if (!minute.value.trim()) return false;
               const value = Number(minute.value);
@@ -877,8 +898,76 @@ function renderMessageContent(message, text) {
         );
         proposalTimeInputs.push({
           startInput, endInput, startTime, endTime, allDayToggle,
-          recurrenceEditor, action
+          recurrenceEditor, recurrenceSelect, weekdayWrap,
+          section, action
         });
+
+        function refreshDetails() {
+          const currentLines = [];
+          const isAllDay = allDayToggle.checked;
+          const startClock = isAllDay ? "" : startTime.values();
+          const endClock = isAllDay ? "" : endTime.values();
+
+          if (startInput.value) {
+            currentLines.push(`Start: ${formatDate(
+              startClock ? `${startInput.value}T${startClock}` : startInput.value,
+              !startClock
+            )}`);
+          }
+          if (endInput.value) {
+            currentLines.push(isAllDay
+              ? `End date (exclusive): ${formatDate(endInput.value, true)}`
+              : `End: ${formatDate(
+                  endClock ? `${endInput.value}T${endClock}` : endInput.value,
+                  !endClock
+                )}`);
+          }
+
+          const selectedRecurrence = recurrenceEditor.values();
+          if (selectedRecurrence?.length) {
+            const rule = selectedRecurrence[0];
+            const frequency = /FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/i.exec(rule)?.[1]?.toUpperCase();
+            const dayNames = {
+              MO: "Monday", TU: "Tuesday", WE: "Wednesday", TH: "Thursday",
+              FR: "Friday", SA: "Saturday", SU: "Sunday"
+            };
+            const days = /BYDAY=([^;]+)/i.exec(rule)?.[1]
+              ?.split(",").map(day => dayNames[day.toUpperCase()]).filter(Boolean) || [];
+            const descriptions = {
+              DAILY: "Every day",
+              WEEKLY: days.length ? `Every week on ${days.join(", ")}` : "Every week",
+              MONTHLY: "Every month",
+              YEARLY: "Every year"
+            };
+            if (frequency) currentLines.push(`Repeats: ${descriptions[frequency]}`);
+          }
+
+          const editor = item._calendarEditor || {};
+          const location = editor.locationInput?.value.trim();
+          const description = editor.descriptionInput?.value.trim();
+          if (location) currentLines.push(`Location: ${location}`);
+          if (description) currentLines.push(`Description: ${description}`);
+          details.textContent = currentLines.join("\n");
+        }
+
+        [startInput, endInput].forEach(input => {
+          input.addEventListener("input", refreshDetails);
+          input.addEventListener("change", refreshDetails);
+        });
+        [startTime, endTime].forEach(picker => {
+          picker.controls.forEach(control => {
+            control.addEventListener("input", refreshDetails);
+            control.addEventListener("change", refreshDetails);
+          });
+        });
+        [recurrenceSelect, weekdayWrap, allDayToggle].forEach(element => {
+          element.addEventListener("change", refreshDetails);
+        });
+        const editor = item._calendarEditor || {};
+        [editor.descriptionInput, editor.locationInput].forEach(input => {
+          input?.addEventListener("input", refreshDetails);
+        });
+        refreshDetails();
       } else {
         proposalTimeInputs.push(null);
       }
@@ -904,40 +993,58 @@ function renderMessageContent(message, text) {
     status.hidden = true;
 
     async function decide(approved) {
-      const timedFields = proposalTimeInputs.filter(
-        fields => fields && fields.action !== "delete" && !fields.allDayToggle.checked
-      );
-      const hasInvalidMinute = timedFields.some(fields =>
-        fields.startTime.hasInvalidMinute() || fields.endTime.hasInvalidMinute()
-      );
+      let hasValidationErrors = false;
+      if (approved) {
+        proposalTimeInputs.forEach((fields, index) => {
+          if (!fields || fields.action === "delete") return;
+          const editor = proposals[index]._calendarEditor || {};
+          const isTimed = !fields.allDayToggle.checked;
+          const invalidTitle = !editor.titleInput?.value.trim();
+          const invalidStartDate = !fields.startInput.value;
+          const invalidEndDate = !fields.endInput.value || (
+            fields.allDayToggle.checked &&
+            fields.endInput.value <= fields.startInput.value
+          );
+          const invalidStartTime = isTimed && !fields.startTime.values();
+          const invalidEndTime = isTimed && !fields.endTime.values();
+          const invalidMinute = isTimed && (
+            fields.startTime.hasInvalidMinute() || fields.endTime.hasInvalidMinute()
+          );
+          const invalidRecurrence = fields.recurrenceEditor.values() === null;
+          const invalid = invalidTitle || invalidStartDate || invalidEndDate ||
+            invalidStartTime || invalidEndTime || invalidMinute || invalidRecurrence;
+          hasValidationErrors ||= invalid;
 
-      if (approved && hasInvalidMinute) {
-        status.hidden = false;
-        status.textContent = "Minute must be a whole number between 0 and 59.";
-        return;
+          function markInvalid(element, value) {
+            if (!element) return;
+            element.style.borderColor = value ? "#d93025" : "";
+            element.style.outline = value ? "2px solid rgba(217,48,37,.3)" : "";
+            element.setAttribute("aria-invalid", String(Boolean(value)));
+          }
+
+          markInvalid(editor.titleInput, invalidTitle);
+          markInvalid(fields.startInput, invalidStartDate);
+          markInvalid(fields.endInput, invalidEndDate);
+          markInvalid(fields.startTime.element, invalidStartTime || invalidMinute);
+          markInvalid(fields.endTime.element, invalidEndTime || invalidMinute);
+          fields.startTime.controls.forEach((control, index) => {
+            markInvalid(control, invalidStartTime || (invalidMinute && index === 1));
+          });
+          fields.endTime.controls.forEach((control, index) => {
+            markInvalid(control, invalidEndTime || (invalidMinute && index === 1));
+          });
+          markInvalid(fields.recurrenceSelect, invalidRecurrence);
+          markInvalid(fields.weekdayWrap, invalidRecurrence);
+          fields.section.style.outline = invalid ? "2px solid #d93025" : "";
+          fields.section.style.outlineOffset = invalid ? "3px" : "";
+          fields.section.style.borderRadius = invalid ? "8px" : "";
+          fields.section.style.background = invalid ? "rgba(217,48,37,.05)" : "";
+        });
       }
 
-      if (approved && proposalTimeInputs.some(
-        fields => fields && fields.recurrenceEditor?.values() === null
-      )) {
+      if (approved && hasValidationErrors) {
         status.hidden = false;
-        status.textContent = "Select at least one weekday for a weekly event.";
-        return;
-      }
-
-      if (approved && proposalTimeInputs.some((fields, index) =>
-        fields && fields.action !== "delete" && (
-          !proposals[index]._calendarEditor?.titleInput.value.trim() ||
-          !fields.startInput.value ||
-          !fields.endInput.value ||
-          (!fields.allDayToggle.checked &&
-            (!fields.startTime.values() || !fields.endTime.values())) ||
-          (fields.allDayToggle.checked &&
-            fields.endInput.value <= fields.startInput.value)
-        )
-      )) {
-        status.hidden = false;
-        status.textContent = "Check that every event has a title, valid start and end dates, and complete times for timed events. All-day end dates must be after their start dates.";
+        status.textContent = "Please fix the highlighted events and fields before approving. Timed events need complete start and end times; weekly events need at least one weekday.";
         return;
       }
 

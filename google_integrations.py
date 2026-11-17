@@ -17,6 +17,7 @@ load_dotenv(ENV_FILE, override=True)
 REDIRECT_URI = "http://localhost:8000/api/google/callback"
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/tasks.readonly",
     "https://www.googleapis.com/auth/gmail.send",
 ]
 
@@ -208,6 +209,67 @@ def send_gmail_message(to, subject, body, cc="", bcc="", reply_to="", attachment
     ).execute()
 
 
+def get_tasks_service():
+    return build(
+        "tasks",
+        "v1",
+        credentials=get_google_credentials(),
+        cache_discovery=False,
+    )
+
+
+def list_google_tasks(query="", show_completed=True, max_results=100):
+    service = get_tasks_service()
+    task_lists = []
+    page_token = None
+    while True:
+        response = service.tasklists().list(
+            maxResults=100, pageToken=page_token
+        ).execute()
+        task_lists.extend(response.get("items", []))
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+
+    results = []
+    needle = str(query or "").strip().casefold()
+    remaining = max(1, min(int(max_results), 500))
+    for task_list in task_lists:
+        page_token = None
+        while remaining > 0:
+            response = service.tasks().list(
+                tasklist=task_list["id"],
+                maxResults=min(100, remaining),
+                showCompleted=bool(show_completed),
+                showHidden=True,
+                pageToken=page_token,
+            ).execute()
+            for task in response.get("items", []):
+                title = task.get("title", "")
+                notes = task.get("notes", "")
+                if needle and needle not in (title + " " + notes).casefold():
+                    continue
+                results.append({
+                    "id": task.get("id"),
+                    "title": title,
+                    "notes": notes,
+                    "due": task.get("due"),
+                    "status": task.get("status"),
+                    "completed": task.get("completed"),
+                    "updated": task.get("updated"),
+                    "task_list_id": task_list.get("id"),
+                    "task_list_title": task_list.get("title"),
+                    "kind": "google_task",
+                })
+                if len(results) >= max_results:
+                    return results
+            remaining -= len(response.get("items", []))
+            page_token = response.get("nextPageToken")
+            if not page_token or not response.get("items"):
+                break
+    return results
+
+
 def get_calendar_service():
     return build(
         "calendar",
@@ -315,10 +377,20 @@ def update_calendar_event(event_id, updates):
     if set(updates) - allowed:
         raise ValueError("Unsupported calendar event field.")
 
+    # For one-off timed events, send the explicit RFC3339 offset without
+    # a separate IANA timezone. This avoids timezone-database conflicts
+    # when converting an existing all-day event into a timed event.
+    body = dict(updates)
+    for field in ("start", "end"):
+        value = body.get(field)
+        if isinstance(value, dict) and value.get("dateTime"):
+            body[field] = dict(value)
+            body[field].pop("timeZone", None)
+
     return get_calendar_service().events().patch(
         calendarId="primary",
         eventId=event_id,
-        body=updates,
+        body=body,
     ).execute()
 
 

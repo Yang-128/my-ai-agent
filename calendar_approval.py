@@ -139,7 +139,8 @@ def create_pending_calendar_action(arguments, conversation_id, action):
                     start = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
                 except ValueError:
                     raise ValueError("Start time must be a valid ISO 8601 date-time.")
-                start = start.replace(tzinfo=local_timezone) if start.tzinfo is None else start.astimezone(local_timezone)
+                # Preserve the requested local clock time; do not shift it using a stale offset.
+                start = start.replace(tzinfo=local_timezone)
                 event["start"] = {"dateTime": start.isoformat(), "timeZone": "America/Vancouver"}
 
             if end_time:
@@ -147,7 +148,8 @@ def create_pending_calendar_action(arguments, conversation_id, action):
                     end = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
                 except ValueError:
                     raise ValueError("End time must be a valid ISO 8601 date-time.")
-                end = end.replace(tzinfo=local_timezone) if end.tzinfo is None else end.astimezone(local_timezone)
+                # Preserve the requested local clock time; do not shift it using a stale offset.
+                end = end.replace(tzinfo=local_timezone)
                 event["end"] = {"dateTime": end.isoformat(), "timeZone": "America/Vancouver"}
 
             if "start" in event and "end" in event:
@@ -292,8 +294,10 @@ def update_pending_calendar_event_times(
         except ValueError:
             raise ValueError("Start and end must be valid date/time values.")
 
-        start = start.replace(tzinfo=local_timezone) if start.tzinfo is None else start.astimezone(local_timezone)
-        end = end.replace(tzinfo=local_timezone) if end.tzinfo is None else end.astimezone(local_timezone)
+        # Preserve the requested local clock time; do not shift it using a stale offset.
+        start = start.replace(tzinfo=local_timezone)
+        # Preserve the requested local clock time; do not shift it using a stale offset.
+        end = end.replace(tzinfo=local_timezone)
         if end <= start:
             raise ValueError("Event end time must be later than its start time.")
 

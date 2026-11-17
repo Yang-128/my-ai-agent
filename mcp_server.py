@@ -11,6 +11,7 @@ from web_search import search_web, fetch_webpage
 from google_integrations import (
     list_calendar_events,
     get_calendar_event,
+    list_google_tasks,
 )
 
 mcp = FastMCP("My AI Agent")
@@ -45,6 +46,14 @@ def mac_walk_directories(start):
         ]
         yield current_path, files
 
+
+
+@mcp.tool()
+def search_google_tasks(query: str = "", show_completed: bool = True, max_results: int = 100) -> str:
+    """Search Google Tasks separately from Google Calendar events. Returns task title, notes, due date, completion status, and task-list name. Use this to identify and inspect tasks; these are not calendar events."""
+    import json
+    tasks = list_google_tasks(query, show_completed, max_results)
+    return json.dumps(tasks, ensure_ascii=False)
 
 
 @mcp.tool()

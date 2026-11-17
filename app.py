@@ -5,7 +5,7 @@ from runtime import RESOURCE_DIR
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from chat import router as chat_router
 from storage import (
@@ -28,6 +28,7 @@ from google_integrations import (
     finish_google_oauth,
     google_calendar_status,
     create_calendar_event,
+    get_calendar_event,
     update_calendar_event,
     delete_calendar_event,
     disconnect_google_calendar,
@@ -111,6 +112,19 @@ app.mount(
     StaticFiles(directory=BASE_DIR / "static"),
     name="static"
 )
+
+
+@app.get("/service-worker.js")
+async def service_worker():
+    return FileResponse(
+        BASE_DIR / "static" / "service-worker.js",
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/"
+        }
+    )
+
 
 app.include_router(chat_router)
 
@@ -595,6 +609,7 @@ def google_calendar_approve_event(body: dict):
         or not pending_ids
         or not all(isinstance(item, str) and item.strip() for item in pending_ids)
         or len(pending_ids) > 50
+        or len(set(pending_ids)) != len(pending_ids)
         or not isinstance(approved, bool)
     ):
         raise HTTPException(
@@ -683,10 +698,52 @@ def google_calendar_approve_event(body: dict):
                 })
 
             elif action == "update":
-                event = update_calendar_event(event_id, event_data)
+                original_event = get_calendar_event(event_id)
+                original_start = original_event.get("start", {})
+                proposed_start = event_data.get("start", {})
+
+                original_is_all_day = "date" in original_start
+                proposed_is_all_day = "date" in proposed_start
+                is_type_conversion = original_is_all_day != proposed_is_all_day
+
+                if is_type_conversion:
+                    # Google Calendar does not reliably support converting
+                    # between all-day and timed events through PATCH.
+                    # Create the replacement first so a failed insert never
+                    # destroys the original event.
+                    replacement = create_calendar_event(
+                        summary=event_data["summary"],
+                        start=event_data.get("start"),
+                        end=event_data.get("end"),
+                        recurrence=event_data.get("recurrence"),
+                        location=event_data.get("location", ""),
+                        description=event_data.get("description", ""),
+                    )
+
+                    try:
+                        delete_calendar_event(event_id)
+                    except Exception as delete_error:
+                        try:
+                            delete_calendar_event(replacement["id"])
+                        except Exception as rollback_error:
+                            raise RuntimeError(
+                                "Replacement event was created, but the original "
+                                "could not be deleted and rollback also failed. "
+                                f"Original deletion error: {delete_error}. "
+                                f"Rollback error: {rollback_error}. "
+                                f"Replacement event ID: {replacement.get('id')}"
+                            ) from delete_error
+                        raise
+
+                    event = replacement
+                    result_action = "replace"
+                else:
+                    event = update_calendar_event(event_id, event_data)
+                    result_action = action
+
                 results.append({
                     "success": True,
-                    "action": action,
+                    "action": result_action,
                     "event_id": event.get("id"),
                     "html_link": event.get("htmlLink"),
                     "summary": event.get("summary"),

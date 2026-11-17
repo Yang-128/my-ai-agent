@@ -28,7 +28,7 @@ from gmail_approval import create_pending_gmail_message
 router = APIRouter()
 
 
-def execute_chat_tool(name, arguments, user_message):
+def execute_chat_tool(name, arguments, user_message, reference_time=None):
     arguments = dict(arguments)
 
     if name == "mcp_search_calendar_events":
@@ -47,7 +47,15 @@ def execute_chat_tool(name, arguments, user_message):
         )
         if match:
             zone = ZoneInfo("America/Vancouver")
-            today = datetime.now(zone).date()
+            timestamp_match = re.search(
+                r"\((\d{4}-\d{2}-\d{2}T[^)]+)\)",
+                str(reference_time or ""),
+            )
+            if not timestamp_match:
+                raise ValueError("Authoritative calendar time is unavailable.")
+            today = datetime.fromisoformat(
+                timestamp_match.group(1)
+            ).astimezone(zone).date()
             target_weekday = weekdays[match.group(1)]
             monday = today - timedelta(days=today.weekday())
             target_date = monday + timedelta(days=7 + target_weekday)
@@ -322,6 +330,18 @@ def ai_decide_extensions(message, provider, model, available_tools, conversation
             if name in available_names and name not in required:
                 required.append(name)
 
+    # Calendar-related requests should inspect both event and task records.
+    if calendar_intent:
+        if "mcp_search_google_tasks" in available_names and "mcp_search_google_tasks" not in required:
+            required.append("mcp_search_google_tasks")
+
+    # Explicit task requests also require the authoritative local clock.
+    task_intent = any(term in message.lower() for term in (
+        "task", "tasks", "todo", "to-do", "to do", "checklist", "reminder",
+    ))
+    if task_intent and "mcp_get_current_time" in available_names and "mcp_get_current_time" not in required:
+        required.append("mcp_get_current_time")
+
     # Web research requires both discovery and page extraction.
     if "mcp_web_search" in required and "mcp_web_fetch" in available_names:
         if "mcp_web_fetch" not in required:
@@ -544,11 +564,31 @@ def chat(request: ChatRequest):
                     "do not require start.date to equal the requested date, because "
                     "multi-day events may have started earlier. Do not reject an event "
                     "because it has no dateTime or clock time. "
+                    "Google Calendar events and Google Tasks are different object types. "
+                    "A calendar event has a scheduled start/end time or all-day date; "
+                    "a Google Task is a task-list item with its own completion status "
+                    "and optional due date. Never describe a Google Task as a calendar "
+                    "event or assume that a task appears in calendar event search. "
+                    "When the user asks what tasks exist, search Google Tasks using "
+                    "mcp_search_google_tasks. When the user asks what is scheduled, "
+                    "inspect both calendar events and Google Tasks when available, "
+                    "and label the two types distinctly in the answer. A task due date "
+                    "does not imply a scheduled time. Do not invent a time for a task. "
                     "Use mcp_create_calendar_events for ALL event creation requests, "
                     "including a single event, using an events array. Each item must "
                     "include action='create' and the relevant event fields. Use "
                     "mcp_update_calendar_event and mcp_delete_calendar_event for "
-                    "changes to existing events. You may propose additional "
+                    "changes to existing events. IMPORTANT: When the user asks to split "
+                    "or separate one existing event into multiple distinct events, do not "
+                    "merely rename or modify the original event. First identify and inspect "
+                    "the original event. Then call mcp_create_calendar_events exactly once "
+                    "with an events array containing an action='update' item for the "
+                    "original event and an action='create' item for every additional event. "
+                    "Preserve the original event ID on the update item. Give every resulting "
+                    "event its own requested title, start, and end. Verify that the batch "
+                    "contains every requested event before proposing it for approval. Never "
+                    "treat a split as complete if the batch contains only the update. "
+                    "You may propose additional "
                     "batches in later turns of the same conversation; there is no one-batch "
                     "limit per conversation. Every change must be presented together for "
                     "explicit user approval in chat before execution. Never claim a change "
@@ -803,7 +843,7 @@ def chat(request: ChatRequest):
                             else:
                                 try:
                                     arguments = json.loads(call.function.arguments)
-                                    output = execute_chat_tool(call.function.name, arguments, message)
+                                    output = execute_chat_tool(call.function.name, arguments, message, calendar_reference_time)
                                 except Exception as error:
                                     output = f"Tool error: {error}"
 
@@ -862,7 +902,17 @@ def chat(request: ChatRequest):
                                 target_date = None
                                 if weekday_match:
                                     zone = ZoneInfo("America/Vancouver")
-                                    today = datetime.now(zone).date()
+                                    timestamp_match = re.search(
+                                        r"\((\d{4}-\d{2}-\d{2}T[^)]+)\)",
+                                        str(calendar_reference_time),
+                                    )
+                                    if not timestamp_match:
+                                        raise ValueError(
+                                            "Authoritative calendar time is unavailable."
+                                        )
+                                    today = datetime.fromisoformat(
+                                        timestamp_match.group(1)
+                                    ).astimezone(zone).date()
                                     target_weekday = weekdays[weekday_match.group(1)]
                                     monday = today - timedelta(days=today.weekday())
                                     target_date = monday + timedelta(days=7 + target_weekday)
@@ -907,11 +957,10 @@ def chat(request: ChatRequest):
                                             parsed = datetime.fromisoformat(
                                                 arguments[field].replace("Z", "+00:00")
                                             )
-                                            parsed = (
-                                                parsed.replace(tzinfo=zone)
-                                                if parsed.tzinfo is None
-                                                else parsed.astimezone(zone)
-                                            )
+                                            # Calendar times are interpreted as
+                                            # Vancouver wall-clock times. Ignore any
+                                            # stale offset supplied by the model.
+                                            parsed = parsed.replace(tzinfo=zone)
                                             arguments[field] = parsed.replace(
                                                 year=target_date.year,
                                                 month=target_date.month,
@@ -922,6 +971,106 @@ def chat(request: ChatRequest):
                                         arguments["end_date"] = (
                                             target_date + timedelta(days=1)
                                         ).isoformat()
+
+                                # When an all-day event is changed to a timed event,
+                                # remove its date-only fields. Google Calendar events
+                                # cannot contain both date and dateTime for the same
+                                # start/end values.
+                                if arguments.get("start_time") or arguments.get("end_time"):
+                                    arguments.pop("start_date", None)
+                                    arguments.pop("end_date", None)
+
+                            # Recover a clearly specified second event if the model
+                            # omitted it from an otherwise valid split proposal.
+                            split_requested = bool(re.search(
+                                r"\b(split|separate)\b",
+                                message,
+                                re.IGNORECASE,
+                            ))
+                            if split_requested:
+                                updates = [
+                                    arguments for arguments, action in actions
+                                    if action == "update"
+                                ]
+                                creates = [
+                                    arguments for arguments, action in actions
+                                    if action == "create"
+                                ]
+                                if len(updates) == 1 and not creates:
+                                    second_range = re.search(
+                                        r"\bsecond\s+one\s+is\s+from\s+"
+                                        r"(\d{3,4})\s*[-–]\s*(\d{3,4})\b",
+                                        message,
+                                        re.IGNORECASE,
+                                    )
+                                    second_title = re.search(
+                                        r"\band\s+([A-Za-z][A-Za-z0-9 &'-]*?"
+                                        r"\b(?:retest|test|exam))\b",
+                                        message,
+                                        re.IGNORECASE,
+                                    )
+                                    original_end = updates[0].get("end_time", "")
+                                    original_start = updates[0].get("start_time", "")
+                                    if second_range and second_title and original_end and original_start:
+                                        def parse_compact_time(value):
+                                            value = value.strip()
+                                            hour, minute = (
+                                                (int(value[:-2]), int(value[-2:]))
+                                                if len(value) == 4
+                                                else (int(value[0]), int(value[1:]))
+                                            )
+                                            if hour > 23 or minute > 59:
+                                                raise ValueError("Invalid time in the second event range.")
+                                            return hour, minute
+
+                                        start_hour, start_minute = parse_compact_time(second_range.group(1))
+                                        end_hour, end_minute = parse_compact_time(second_range.group(2))
+                                        original_end_dt = datetime.fromisoformat(
+                                            original_end.replace("Z", "+00:00")
+                                        )
+                                        if (start_hour, start_minute) != (
+                                            original_end_dt.hour,
+                                            original_end_dt.minute,
+                                        ):
+                                            raise ValueError(
+                                                "The second event's stated start time does not "
+                                                "match the original event's end time."
+                                            )
+                                        if (end_hour, end_minute) <= (start_hour, start_minute):
+                                            raise ValueError("The second event must end after it starts.")
+                                        second_start = original_end_dt.replace(
+                                            hour=start_hour, minute=start_minute, second=0, microsecond=0
+                                        )
+                                        second_end = original_end_dt.replace(
+                                            hour=end_hour, minute=end_minute, second=0, microsecond=0
+                                        )
+                                        second_event = {
+                                            "summary": second_title.group(1).strip(),
+                                            "start_time": second_start.isoformat(),
+                                            "end_time": second_end.isoformat(),
+                                        }
+                                        actions.append((second_event, "create"))
+
+                            # Never present an incomplete split for approval.
+                            split_requested = bool(re.search(
+                                r"\b(split|separate)\b",
+                                message,
+                                re.IGNORECASE,
+                            ))
+                            if split_requested:
+                                update_count = sum(
+                                    action == "update" for _, action in actions
+                                )
+                                create_count = sum(
+                                    action == "create" for _, action in actions
+                                )
+                                if update_count < 1 or create_count < 1:
+                                    raise ValueError(
+                                        "This split request requires at least one "
+                                        "update to the original event and one new "
+                                        "event. The proposal was not created because "
+                                        "it did not include both actions."
+                                    )
 
                             print(f"[CALENDAR DEBUG] Preparing {len(actions)} actions.", flush=True)
                             calendar_proposal = create_pending_calendar_actions(
@@ -951,7 +1100,7 @@ def chat(request: ChatRequest):
                 for call in tool_calls:
                     try:
                         arguments = json.loads(call.function.arguments)
-                        output = execute_chat_tool(call.function.name, arguments, message)
+                        output = execute_chat_tool(call.function.name, arguments, message, calendar_reference_time)
                     except Exception as error:
                         output = f"Tool error: {error}"
 

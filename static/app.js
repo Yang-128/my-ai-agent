@@ -1,20 +1,3 @@
-// Keep the local backend alive while at least one browser tab is open.
-const browserTabId = sessionStorage.getItem("my-ai-agent-tab-id") || crypto.randomUUID();
-sessionStorage.setItem("my-ai-agent-tab-id", browserTabId);
-
-async function sendBrowserHeartbeat() {
-  try {
-    await fetch("/api/session/heartbeat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ client_id: browserTabId })
-    });
-  } catch (_) {}
-}
-
-sendBrowserHeartbeat();
-setInterval(sendBrowserHeartbeat, 2000);
-
 const form = document.getElementById("chat-form");
 const input = document.getElementById("message-input");
 const messages = document.getElementById("messages");
@@ -2068,6 +2051,26 @@ chatNav.addEventListener("click", showChat);
 filesNav.addEventListener("click", showFiles);
 usageNav.addEventListener("click", showUsage);
 toolsNav.addEventListener("click", showTools);
+
+document.querySelectorAll("#mobile-navigation button[data-page]").forEach(button => {
+  button.addEventListener("click", () => {
+    const page = button.dataset.page;
+    const navigation = {
+      chat: chatNav,
+      tools: toolsNav,
+      files: filesNav,
+      usage: usageNav
+    };
+
+    navigation[page]?.click();
+
+    document.querySelectorAll("#mobile-navigation button").forEach(item => {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-current", active ? "page" : "false");
+    });
+  });
+});
 
 document.getElementById("refresh-usage")
   .addEventListener("click", refreshUsage);

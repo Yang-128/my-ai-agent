@@ -1,7 +1,8 @@
 import os
 import httpx
 from pathlib import Path
-from runtime import RESOURCE_DIR
+from runtime import RESOURCE_DIR, ENV_FILE
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -36,71 +37,11 @@ from google_integrations import (
     send_gmail_message,
 )
 
-import asyncio
-import signal
-import time
-import multiprocessing
+
+load_dotenv(ENV_FILE, override=True)
 
 app = FastAPI(title="My AI Agent")
 
-_active_browser_tabs = {}
-_browser_lock = asyncio.Lock()
-_server_started_at = time.monotonic()
-_browser_monitor_task = None
-
-
-@app.post("/api/session/heartbeat")
-async def browser_heartbeat(request: Request):
-    data = await request.json()
-    client_id = data.get("client_id")
-    if not isinstance(client_id, str) or not client_id or len(client_id) > 100:
-        raise HTTPException(status_code=400, detail="Invalid client ID")
-
-    async with _browser_lock:
-        _active_browser_tabs[client_id] = time.monotonic()
-
-    return {"success": True}
-
-
-async def _monitor_browser_tabs():
-    while True:
-        await asyncio.sleep(2)
-        now = time.monotonic()
-
-        async with _browser_lock:
-            for client_id, last_seen in list(_active_browser_tabs.items()):
-                if now - last_seen > 10:
-                    del _active_browser_tabs[client_id]
-
-            no_tabs = not _active_browser_tabs
-
-        startup_grace_expired = now - _server_started_at > 10
-
-        if no_tabs and startup_grace_expired:
-            # Under Uvicorn --reload, terminate the supervisor rather than
-            # only killing its worker and leaving the supervisor running.
-            parent = multiprocessing.parent_process()
-            target_pid = parent.pid if parent is not None else os.getpid()
-            os.kill(target_pid, signal.SIGTERM)
-            return
-
-
-@app.on_event("startup")
-async def start_browser_monitor():
-    global _browser_monitor_task
-    _browser_monitor_task = asyncio.create_task(_monitor_browser_tabs())
-
-
-@app.on_event("shutdown")
-async def stop_browser_monitor():
-    global _browser_monitor_task
-    if _browser_monitor_task:
-        _browser_monitor_task.cancel()
-        try:
-            await _browser_monitor_task
-        except asyncio.CancelledError:
-            pass
-        _browser_monitor_task = None
 
 
 BASE_DIR = RESOURCE_DIR

@@ -1546,3 +1546,265 @@ button {
 .calendar-approval-card p {
   color: var(--text, #ddd);
 }
+
+
+/* Mobile layout */
+#mobile-navigation {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  html {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  body {
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .sidebar {
+    display: none !important;
+  }
+
+  .main {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .topbar {
+    height: 54px;
+    min-height: 54px;
+    padding: 0 13px;
+    gap: 8px;
+  }
+
+  .breadcrumb {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .top-right {
+    gap: 8px;
+  }
+
+  .status {
+    display: none;
+  }
+
+  .model-button {
+    max-width: 48vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 8px;
+  }
+
+  .conversation {
+    min-height: 0;
+    padding: 18px 12px;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .messages {
+    gap: 14px;
+  }
+
+  .message {
+    max-width: 94%;
+    padding: 11px 13px;
+    font-size: 14px;
+  }
+
+  .welcome {
+    margin: auto 0;
+  }
+
+  .welcome h1 {
+    font-size: 23px;
+  }
+
+  .welcome p {
+    margin-bottom: 22px;
+    line-height: 1.5;
+  }
+
+  .suggestions {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .suggestions button {
+    padding: 12px 14px;
+    gap: 5px;
+  }
+
+  .composer-area {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    padding: 8px 10px 9px;
+    margin: 0;
+  }
+
+  .composer {
+    padding: 10px 11px 8px;
+    border-radius: 13px;
+  }
+
+  .composer textarea {
+    min-height: 40px;
+    max-height: 120px;
+    font-size: 16px;
+  }
+
+  .composer-tools button,
+  .send-button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .composer-tools .tool-picker-button {
+    min-height: 36px;
+  }
+
+  .disclaimer {
+    display: none;
+  }
+
+  #mobile-navigation {
+    display: flex;
+    flex: 0 0 auto;
+    width: 100%;
+    justify-content: space-around;
+    align-items: stretch;
+    padding: 5px 4px calc(5px + env(safe-area-inset-bottom));
+    min-height: calc(59px + env(safe-area-inset-bottom));
+    background: #17181b;
+    border-top: 1px solid var(--border);
+  }
+
+  #mobile-navigation button {
+    flex: 1;
+    min-width: 0;
+    min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    touch-action: manipulation;
+  }
+
+  #mobile-navigation button span {
+    font-size: 19px;
+    line-height: 1.2;
+  }
+
+  #mobile-navigation button small {
+    font-size: 10px;
+  }
+
+  #mobile-navigation button.active {
+    color: var(--accent);
+    background: rgba(214, 181, 255, 0.09);
+  }
+
+  .usage-page,
+  .tools-page,
+  .files-page {
+    min-height: 0;
+    padding: 18px 13px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .usage-summary,
+  .tools-summary,
+  .provider-status-grid,
+  .tools-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tools-heading,
+  .files-heading {
+    align-items: flex-start;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .files-toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .files-content {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .files-list {
+    max-height: 38vh;
+    overflow: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .file-preview {
+    min-height: 180px;
+    max-height: 45vh;
+  }
+
+  .tool-picker-menu {
+    left: 0;
+    bottom: calc(100% + 8px);
+    width: min(320px, calc(100vw - 28px));
+    max-height: min(48dvh, 360px);
+  }
+
+  .calendar-approval-card {
+    padding: 13px;
+  }
+
+  .calendar-approval-card button {
+    min-height: 44px;
+    margin: 3px 3px 3px 0;
+  }
+
+  button,
+  select,
+  input {
+    touch-action: manipulation;
+  }
+}
+
+@media (max-width: 380px) {
+  .topbar {
+    padding: 0 9px;
+  }
+
+  .model-button {
+    font-size: 10px;
+  }
+
+  .composer-area {
+    padding-left: 7px;
+    padding-right: 7px;
+  }
+}

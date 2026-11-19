@@ -95,23 +95,7 @@
 
       <div class="usage-section">
         <h2>Model breakdown</h2>
-        <div class="usage-table-wrap">
-          <table class="usage-table">
-            <thead>
-              <tr>
-                <th>Provider / Model</th>
-                <th>Model status</th>
-                <th>RPM (last 60 sec)</th>
-                <th>TPM (last 60 sec)</th>
-                <th>RPD (today)</th>
-                <th>TPD (today)</th>
-                <th>Avg tokens / turn</th>
-                <th>Reset</th>
-              </tr>
-            </thead>
-            <tbody id="usage-rows"></tbody>
-          </table>
-        </div>
+        <div class="usage-model-grid" id="usage-rows"></div>
       </div>
 
       <p class="usage-note">Limits and reset information depend on what each provider makes available through its API.</p>
@@ -208,7 +192,7 @@
     </nav>
   </main>
 
-  <script src="/static/app.js?v=20261117-heartbeatremoved1"></script>
+  <script src="/static/app.js?v=20261119-usagecards1"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>

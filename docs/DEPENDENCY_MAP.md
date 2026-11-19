@@ -19,10 +19,6 @@
 - `storage`
 - `tools`
 
-### `auth.py`
-
-- `runtime`
-
 ### `backend_launcher.py`
 
 - `app`

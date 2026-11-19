@@ -51,13 +51,6 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 758 | function | `google_gmail_approve_message` |
 | 805 | function | `google_calendar_disconnect` |
 
-### `auth.py`
-
-| Line | Kind | Symbol |
-|---:|---|---|
-| 12 | constant | `_ITERATIONS` |
-| 16 | function | `verify_authorization` |
-
 ### `calendar_approval.py`
 
 | Line | Kind | Symbol |
@@ -212,7 +205,10 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 263 | function | `rust_imports` |
 | 272 | function | `frontend_external_assets` |
 | 279 | function | `declared_dependencies` |
-| 307 | function | `main` |
+| 308 | function | `generate_feature_code_map` |
+| 331 | function | `generate_feature_code_map.read_lines` |
+| 338 | function | `generate_feature_code_map.section` |
+| 434 | function | `main` |
 
 ### `storage.py`
 
@@ -311,14 +307,14 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 1854 | function | `isDailyLimitReached` |
 | 1867 | function | `hasKnownDailyLimit` |
 | 1975 | function | `quotaText` |
-| 2081 | function | `refreshTools` |
-| 2303 | function | `showTools` |
-| 2323 | function | `loadFiles` |
-| 2382 | function | `formatFileSize` |
-| 2389 | function | `previewFile` |
-| 2427 | function | `showFiles` |
-| 2459 | function | `refreshGoogleCalendarStatus` |
-| 2482 | function | `refreshGoogleGmailStatus` |
+| 2119 | function | `refreshTools` |
+| 2341 | function | `showTools` |
+| 2361 | function | `loadFiles` |
+| 2420 | function | `formatFileSize` |
+| 2427 | function | `previewFile` |
+| 2465 | function | `showFiles` |
+| 2497 | function | `refreshGoogleCalendarStatus` |
+| 2520 | function | `refreshGoogleGmailStatus` |
 
 ### `static/service-worker.js`
 

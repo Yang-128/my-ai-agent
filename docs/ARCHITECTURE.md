@@ -72,6 +72,5 @@ Calendar and Gmail pending actions are managed by their respective approval modu
 
 - Google API access depends on configured OAuth credentials and tokens.
 - Calendar mutations and Gmail sending use application approval workflows.
-- `auth.py` is currently untracked and is not integrated into the active FastAPI route path. Do not describe authentication as active.
 - Filesystem tools expose local capabilities; review access boundaries before changing them.
 - Never commit `.env`, OAuth tokens, databases, pending-action files or user data.

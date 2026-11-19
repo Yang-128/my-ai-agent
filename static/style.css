@@ -572,7 +572,7 @@ button {
 
 .usage-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 15px;
   margin: 30px 0;
 }
@@ -600,75 +600,129 @@ button {
   margin: 30px 0 15px;
 }
 
-.usage-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+.usage-model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  gap: 16px;
+  width: 100%;
 }
 
-.usage-table {
-  width: max-content;
-  min-width: 1500px;
-  border-collapse: separate;
-  border-spacing: 0;
-  table-layout: auto;
-  text-align: left;
-}
-
-.usage-table th,
-.usage-table td {
-  padding: 13px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-
-.usage-table th:first-child,
-.usage-table td:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  min-width: 240px;
-  max-width: 300px;
-  white-space: normal;
+.usage-model-card {
+  min-width: 0;
+  padding: 20px;
   background: var(--panel);
-}
-
-.usage-table th:first-child {
-  z-index: 3;
-}
-
-.usage-table th:nth-child(2),
-.usage-table td:nth-child(2) {
-  min-width: 125px;
-}
-
-.usage-table tbody tr:hover td {
-  background: var(--panel-hover);
-}
-
-.usage-table tbody tr:hover td:first-child {
-  background: var(--panel-hover);
-}
-
-.usage-table-wrap {
-  overflow: auto;
-  max-width: 100%;
-  max-height: 65vh;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  scrollbar-width: thin;
+  border-radius: 14px;
+  transition: border-color 160ms ease, transform 160ms ease;
 }
 
-.usage-table th {
+.usage-model-card:hover {
+  border-color: var(--muted);
+  transform: translateY(-2px);
+}
+
+.usage-model-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.usage-model-identity {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.usage-model-provider,
+.usage-model-metric > span,
+.usage-model-average > span,
+.usage-model-reset > span {
   color: var(--muted);
-  font-weight: 600;
-  background: var(--panel);
+  font-size: 11px;
 }
 
-.usage-table td {
-  color: var(--text);
+.usage-model-name {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+.usage-model-status {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.usage-model-status.status-available {
+  color: #8be0ae;
+  background: #173d2d;
+  border-color: #327653;
+}
+
+.usage-model-status.status-unavailable {
+  color: #ffaaaa;
+  background: #472323;
+  border-color: #814040;
+}
+
+.usage-model-status.status-unknown {
+  color: var(--muted);
+  background: var(--panel-hover);
+}
+
+.usage-model-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.usage-model-metric {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 13px;
+  background: var(--panel-hover);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.usage-model-metric strong {
+  overflow-wrap: anywhere;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-model-metric small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.usage-model-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.usage-model-average,
+.usage-model-reset {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.usage-model-average strong,
+.usage-model-reset strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .usage-note {
@@ -695,14 +749,32 @@ button {
   }
 
   .usage-summary {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .usage-card {
+    padding: 15px;
+  }
+
+  .usage-card strong {
+    font-size: 21px;
+  }
+
+  .usage-model-card {
+    padding: 15px;
+  }
+
+  .usage-model-footer {
+    flex-direction: column;
+    gap: 12px;
   }
 }
 
 
 .provider-status-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 15px;
   margin: 15px 0 25px;
 }

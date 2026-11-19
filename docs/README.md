@@ -5,6 +5,7 @@
 - [Architecture](ARCHITECTURE.md)
 - [Repository map](REPOSITORY_MAP.md) — generated
 - [Function index](FUNCTION_INDEX.md) — generated
+- [Feature code map](FEATURE_CODE_MAP.md) — generated cross-layer implementation references
 - [Dependency map](DEPENDENCY_MAP.md) — generated
 - [Data flow](DATA_FLOW.md)
 - [Feature guide](FEATURE_GUIDE.md)

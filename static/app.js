@@ -1995,9 +1995,7 @@ async function refreshUsage() {
       const rpm = quotaText(item.rpm_used, item.rpm_limit);
       const tpm = quotaText(item.tpm_used, item.tpm_limit);
       const rpd = quotaText(item.rpd_used, item.rpd_limit);
-      const tpd = Number(item.tpd_used || 0) === 0
-        ? "—"
-        : quotaText(item.tpd_used, item.tpd_limit);
+      const tpd = quotaText(item.tpd_used, item.tpd_limit);
 
       const modelTurns = turns.find(turn =>
         turn.provider === item.provider && turn.model === item.model
@@ -2012,33 +2010,73 @@ async function refreshUsage() {
         ? "—"
         : `${modelAverage.toLocaleString()} (${turnCount} ${turnCount === 1 ? "turn" : "turns"})`;
 
-      const tr = document.createElement("tr");
+      const card = document.createElement("article");
+      card.className = "usage-model-card";
 
       const modelStatus = hasKnownDailyLimit(item)
         ? (isDailyLimitReached(item) ? "Daily limit reached" : "Available")
         : "Limit unknown";
 
-      [
-        `${providerName} · ${modelName}`,
-        modelStatus,
-        rpm,
-        tpm,
-        rpd,
-        tpd,
-        average
-      ].forEach(value => {
-        const td = document.createElement("td");
-        td.textContent = value;
-        tr.appendChild(td);
+      card.innerHTML = `
+        <div class="usage-model-header">
+          <div class="usage-model-identity">
+            <span class="usage-model-provider"></span>
+            <strong class="usage-model-name"></strong>
+          </div>
+          <span class="usage-model-status"></span>
+        </div>
+        <div class="usage-model-metrics"></div>
+        <div class="usage-model-footer">
+          <div class="usage-model-average">
+            <span>Average tokens / turn</span>
+            <strong></strong>
+          </div>
+          <div class="usage-model-reset">
+            <span>Next reset</span>
+            <strong class="usage-reset"></strong>
+          </div>
+        </div>
+      `;
+
+      card.querySelector(".usage-model-provider").textContent = providerName;
+      card.querySelector(".usage-model-name").textContent = modelName;
+
+      const statusBadge = card.querySelector(".usage-model-status");
+      statusBadge.textContent = modelStatus;
+      statusBadge.classList.add(
+        modelStatus === "Available" ? "status-available" :
+        modelStatus === "Daily limit reached" ? "status-unavailable" :
+        "status-unknown"
+      );
+
+      const metrics = [
+        ["RPM", rpm, "Last 60 seconds"],
+        ["TPM", tpm, "Last 60 seconds"],
+        ["RPD", rpd, "Today"],
+        ["TPD", tpd, "Today"]
+      ];
+
+      const metricsContainer = card.querySelector(".usage-model-metrics");
+      metrics.forEach(([label, value, period]) => {
+        const metric = document.createElement("div");
+        metric.className = "usage-model-metric";
+        const heading = document.createElement("span");
+        heading.textContent = label;
+        const amount = document.createElement("strong");
+        amount.textContent = value;
+        const caption = document.createElement("small");
+        caption.textContent = period;
+        metric.append(heading, amount, caption);
+        metricsContainer.appendChild(metric);
       });
 
-      const resetCell = document.createElement("td");
-      resetCell.className = "usage-reset";
+      card.querySelector(".usage-model-average strong").textContent = average;
+
+      const resetCell = card.querySelector(".usage-reset");
       resetCell.dataset.duration = item.requests_reset || "";
       resetCell.dataset.updated = item.updated_at || "";
-      tr.appendChild(resetCell);
 
-      rows.appendChild(tr);
+      rows.appendChild(card);
     });
 
     updateResetCountdowns();

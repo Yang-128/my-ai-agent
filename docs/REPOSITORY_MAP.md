@@ -11,21 +11,21 @@ Inventory entries: **66** (tracked and visible untracked files).
 | `README.md` | Documentation | Project overview, setup, usage, and development instructions. | tracked |
 | `agent.py` | Python | Agent orchestration and execution logic. | tracked |
 | `app.py` | Python | FastAPI application, HTTP routes, and static hosting. | tracked |
-| `auth.py` | Python | Standalone authorization helper; not integrated into active routes. | untracked |
 | `backend.spec` | Configuration | PyInstaller backend packaging configuration. | tracked |
 | `backend_launcher.py` | Python | Entry point for backend and MCP server processes. | tracked |
 | `calendar_approval.py` | Python | Pending Google Calendar actions and approval handling. | tracked |
 | `chat.py` | Python | Chat API, streaming, provider calls, and tool orchestration. | tracked |
 | `dist/backend` | Other | Packaged backend executable for desktop distribution. | tracked |
-| `docs/ARCHITECTURE.md` | Documentation | Implemented system components and architectural boundaries. | untracked |
-| `docs/CLEANUP_AUDIT.md` | Documentation | Cleanup findings, risks, and investigation candidates. | untracked |
-| `docs/DATA_FLOW.md` | Documentation | Main chat, approval, authentication, and tool execution flows. | untracked |
-| `docs/DEPENDENCY_MAP.md` | Documentation | Generated source imports and declared dependencies. | untracked |
-| `docs/DEVELOPMENT_LOG.md` | Documentation | Development progress and validation record. | untracked |
-| `docs/FEATURE_GUIDE.md` | Documentation | Feature behavior, implementation locations, and tests. | untracked |
-| `docs/FUNCTION_INDEX.md` | Documentation | Generated function, class, method, and constant index. | untracked |
-| `docs/README.md` | Documentation | Documentation index and maintenance instructions. | untracked |
-| `docs/REPOSITORY_MAP.md` | Documentation | Generated file inventory with purpose and Git state. | untracked |
+| `docs/ARCHITECTURE.md` | Documentation | Implemented system components and architectural boundaries. | tracked |
+| `docs/CLEANUP_AUDIT.md` | Documentation | Cleanup findings, risks, and investigation candidates. | tracked |
+| `docs/DATA_FLOW.md` | Documentation | Main chat, approval, authentication, and tool execution flows. | tracked |
+| `docs/DEPENDENCY_MAP.md` | Documentation | Generated source imports and declared dependencies. | tracked |
+| `docs/DEVELOPMENT_LOG.md` | Documentation | Development progress and validation record. | tracked |
+| `docs/FEATURE_CODE_MAP.md` | Documentation | Generated cross-layer feature implementation map. | untracked |
+| `docs/FEATURE_GUIDE.md` | Documentation | Feature behavior, implementation locations, and tests. | tracked |
+| `docs/FUNCTION_INDEX.md` | Documentation | Generated function, class, method, and constant index. | tracked |
+| `docs/README.md` | Documentation | Documentation index and maintenance instructions. | tracked |
+| `docs/REPOSITORY_MAP.md` | Documentation | Generated file inventory with purpose and Git state. | tracked |
 | `gmail_approval.py` | Python | Pending Gmail messages and attachment approval handling. | tracked |
 | `google_integrations.py` | Python | Google OAuth, Calendar, Tasks, and Gmail API operations. | tracked |
 | `mcp_client.py` | Python | MCP client connection and tool invocation. | tracked |
@@ -35,7 +35,7 @@ Inventory entries: **66** (tracked and visible untracked files).
 | `providers.py` | Python | Provider configuration, model selection, and API clients. | tracked |
 | `requirements.txt` | Configuration | Python runtime dependencies. | tracked |
 | `runtime.py` | Python | Runtime resource and application data path resolution. | tracked |
-| `scripts/generate_code_map.py` | Python | Generates repository, symbol, and dependency indexes. | untracked |
+| `scripts/generate_code_map.py` | Python | Generates repository, symbol, and dependency indexes. | tracked |
 | `scripts/start-web.sh` | Other | Starts the local web development workflow. | tracked |
 | `src-tauri/.gitignore` | Other | Excludes generated Rust and Tauri build artifacts. | tracked |
 | `src-tauri/Cargo.lock` | Other | Locked Rust dependency versions. | tracked |
@@ -66,7 +66,7 @@ Inventory entries: **66** (tracked and visible untracked files).
 | `static/icon-512.png` | Other | Web app icon asset. | tracked |
 | `static/index.html` | HTML | Frontend document structure and external UI libraries. | tracked |
 | `static/manifest.webmanifest` | Other | Web app installation metadata and icons. | tracked |
-| `static/service-worker.js` | JavaScript | Service worker route and cache lifecycle handling. | untracked |
+| `static/service-worker.js` | JavaScript | Service worker route and cache lifecycle handling. | tracked |
 | `static/style.css` | CSS | Frontend layout and visual styling. | tracked |
 | `storage.py` | Python | SQLite persistence for conversations, messages, and usage. | tracked |
 | `test_mcp.py` | Python | MCP client/server smoke-test script. | tracked |

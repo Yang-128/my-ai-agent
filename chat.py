@@ -301,6 +301,32 @@ def ai_decide_extensions(message, provider, model, available_tools, conversation
         if isinstance(name, str) and name in available_names
     ))
 
+    # Deterministically select web tools for explicit research and URL requests.
+    message_lower = message.lower()
+    has_url = bool(re.search(r"https?://[^\s<>()]+|www\.[^\s<>()]+", message_lower))
+
+    web_search_patterns = (
+        r"\b(?:search the web|web search|browse the web|browse online|search online|look online|check online|research online|research the web|investigate online|online research|on the internet|find online)\b",
+        r"\bsearch for (?:information|sources|articles|documentation|news|updates)\b",
+        r"\bfind (?:me )?(?:reliable )?(?:sources|citations|references)\b",
+        r"\blook up (?:the )?(?:latest|current|most recent|up-to-date)\b",
+        r"\b(?:latest|current|most recent|up-to-date)\b.{0,80}\b(?:news|price|version|release|policy|law|regulation|status|schedule|events|developments|information|data|research)\b",
+        r"\b(?:what is|what's|tell me)\s+(?:the )?(?:latest|current|most recent)\b",
+        r"\b(?:today|this week|this month|right now)\b.{0,60}\b(?:news|updates|prices|status|results|developments)\b",
+    )
+    web_search_intent = any(
+        re.search(pattern, message_lower)
+        for pattern in web_search_patterns
+    )
+
+    if web_search_intent and "mcp_web_search" in available_names:
+        if "mcp_web_search" not in required:
+            required.append("mcp_web_search")
+
+    if (has_url or web_search_intent) and "mcp_web_fetch" in available_names:
+        if "mcp_web_fetch" not in required:
+            required.append("mcp_web_fetch")
+
     # Calendar requests always need the authoritative clock. Searching or
     # changing events also requires the calendar search tool; changes require
     # the corresponding write tool and event details when available.

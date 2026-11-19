@@ -1,55 +1,91 @@
 # My AI Agent
 
+A Python/FastAPI AI assistant with a browser frontend, provider selection, MCP tools, Google integrations, conversation history, usage tracking, and an optional Tauri desktop application.
+
+## Requirements
+
+- macOS
+- Python 3.12 (project virtual environment)
+- Node.js and npm for Tauri tooling
+- Rust toolchain for desktop builds
+- API credentials for whichever AI providers and integrations you use
+
+## Web development setup
+
+Create and activate a virtual environment, then install dependencies:
+
+    python3 -m venv .venv
+    .venv/bin/python -m pip install -r requirements.txt
+
+Configure provider credentials in the runtime environment file. See `.env.example` for supported variable names. Never commit credentials.
+
+Start the web application:
+
+    ./scripts/start-web.sh
+
+The development server uses `127.0.0.1:8000`.
+
+## Features
+
+- Streaming AI chat with provider and model selection.
+- Conversation history and SQLite persistence.
+- MCP tool discovery and execution.
+- Google Calendar, Google Tasks, and Gmail integrations.
+- User approval workflows for Calendar changes and Gmail sending.
+- Local file and document browsing.
+- Usage tracking.
+- Optional Tauri desktop packaging.
+
+See [the feature guide](docs/FEATURE_GUIDE.md) for implementation locations.
+
 ## Image Attachments and Vision Support
 
-### Application Upload Limits
+### Application upload limits
 
-The application currently enforces these limits per chat message:
+Per chat message:
 
-- Maximum 4 images per message.
+- Maximum 4 images.
 - Maximum 6 MB per image.
-- Maximum 16 MB combined across all images in one message.
+- Maximum 16 MB combined.
 - Supported formats: PNG, JPEG, and WEBP.
-- Image data is stored with the conversation in the SQLite database and is available when reopening the conversation.
+- Images are stored with the conversation in SQLite.
 
-There is currently **no application-enforced daily image-upload limit**. These limits apply per message, not per day.
+There is no application-enforced daily image-upload limit. Providers may impose separate quotas, token limits, image-size limits, and model-specific restrictions.
 
-### Provider and Model Limits
+### Vision behavior
 
-The absence of an application-level daily upload limit does not mean image processing is unlimited.
+Images are sent directly to the selected model as data URLs in an OpenAI-compatible multimodal message format.
 
-Each API provider may impose its own:
-- Requests-per-minute and requests-per-day quotas.
-- Input-token limits.
-- Image size, resolution, and processing restrictions.
-- Model-specific availability and usage limits.
+Vision-capable models can interpret image contents alongside the user's text. Text-only models cannot interpret images; the application checks model capability and rejects unsupported image requests.
 
-Images sent to a vision model consume provider resources and may count toward its input-token usage or other applicable quotas.
+There is no automatic image-to-text fallback. The application does not first send images to a separate vision service to generate descriptions for a text-only model.
 
-### How Image Recognition Works
+## Testing
 
-The application sends attached images directly to the selected model using an OpenAI-compatible multimodal message format.
+Run the MCP integration smoke test using the project environment:
 
-A multimodal user message contains:
-- Text content, when provided.
-- Images encoded as data URLs in `image_url` content blocks.
+    .venv/bin/python test_mcp.py
 
-**Vision-capable models**
-- Receive both the user's text and attached images.
-- Can interpret image contents, answer questions about images, read visible text, and perform other supported visual tasks.
+This script discovers MCP tools and calls the current-time tool. It is a smoke test, not a `unittest` test case; unittest discovery therefore reports zero tests.
 
-**Text-only models**
-- Cannot interpret image contents.
-- The application checks the selected model's image capability before sending an image request.
-- If the model does not support image input, the application rejects the request and asks the user to select a vision-capable model.
+Compile-check Python source files:
 
-### No Automatic Image-to-Text Fallback
+    .venv/bin/python -m compileall -q .
 
-The application does not currently run a separate image-recognition service to describe an image before sending it to a text-only model.
+## Developer documentation
 
-In particular, it does not automatically:
-1. Send the image to a vision model.
-2. Convert the image into a textual description.
-3. Forward that description to the selected text-only model.
+- [Documentation index](docs/README.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Repository map](docs/REPOSITORY_MAP.md)
+- [Function index](docs/FUNCTION_INDEX.md)
+- [Dependency map](docs/DEPENDENCY_MAP.md)
+- [Data flow](docs/DATA_FLOW.md)
+- [Feature guide](docs/FEATURE_GUIDE.md)
+- [Cleanup audit](docs/CLEANUP_AUDIT.md)
+- [Development log](docs/DEVELOPMENT_LOG.md)
 
-Image understanding therefore requires selecting a vision-capable model.
+Regenerate the repository indexes after source changes:
+
+    .venv/bin/python scripts/generate_code_map.py
+
+Never commit `.env`, OAuth tokens, local databases, pending-action files, or personal data.

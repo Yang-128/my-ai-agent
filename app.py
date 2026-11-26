@@ -19,7 +19,11 @@ from storage import (
     record_usage,
 )
 from provider_ranking import ranked_providers
-from providers import FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
+from provider_credentials import (
+    validate_provider_key,
+    CredentialValidationError,
+)
+from providers import SESSION_PROVIDER_KEYS, SESSION_PROVIDER_VALIDATION, credential_status, provider_key, EXTERNAL_CONNECTIONS, FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
 from calendar_approval import (
     get_pending_calendar_event, discard_pending_calendar_event,
@@ -332,8 +336,8 @@ def check_free_models(provider: str = "openrouter"):
         models = discover_free_models(provider)
     except Exception as error:
         raise HTTPException(502, f"Could not verify the free catalog for {PROVIDERS[provider]['name']}. Check the connection and API key, then retry.") from error
-    return {"provider": provider, "models": models, "source": FREE_TIER_PAGES[provider],
-            "configured": bool(os.getenv(PROVIDERS[provider]["api_key"], "").strip())}
+    return {"provider": provider, "models": models, "source": FREE_TIER_PAGES.get(provider) or PROVIDERS[provider]["setup_url"],
+            "configured": bool(provider_key(provider))}
 
 
 @app.get("/api/free-providers")
@@ -344,18 +348,83 @@ def check_free_providers():
         raise HTTPException(502, "The public provider directory is unavailable. Try again.") from error
 
 
+
+def require_local_provider_request(request):
+    from urllib.parse import urlsplit
+
+    origin = request.headers.get("origin")
+
+    if (
+        not request.client
+        or request.client.host not in {"127.0.0.1", "::1"}
+        or request.url.hostname not in {
+            "127.0.0.1", "::1", "localhost"
+        }
+        or origin is None
+        or origin != f"{request.url.scheme}://{request.url.netloc}"
+        or urlsplit(origin).hostname != request.url.hostname
+    ):
+        raise HTTPException(
+            403,
+            "Open My AI Agent directly on this computer "
+            "to manage API keys.",
+        )
+
+
+@app.post("/api/provider-connection/{provider}")
+def connect_provider(provider: str, request: Request, body: dict):
+    require_local_provider_request(request)
+
+    if provider not in PROVIDERS:
+        raise HTTPException(404, "Unsupported provider.")
+
+    key = body.get("key")
+
+    try:
+        state = validate_provider_key(
+            provider,
+            key,
+            allow_unverified=body.get("allow_unverified") is True,
+        )
+    except CredentialValidationError as error:
+        raise HTTPException(
+            error.status_code, str(error)
+        ) from None
+
+    # Do not replace existing credentials before validation succeeds.
+    SESSION_PROVIDER_KEYS[provider] = key
+    SESSION_PROVIDER_VALIDATION[provider] = state
+
+    return credential_status(provider)
+
+
+@app.delete("/api/provider-connection/{provider}")
+def disconnect_provider(provider: str, request: Request):
+    require_local_provider_request(request)
+
+    if provider not in PROVIDERS:
+        raise HTTPException(404, "Unsupported provider.")
+
+    SESSION_PROVIDER_KEYS.pop(provider, None)
+    SESSION_PROVIDER_VALIDATION.pop(provider, None)
+
+    return credential_status(provider)
+
+
 @app.get("/api/providers")
 def provider_status():
     return [
         {
             "id": provider_id,
             "name": config["name"],
-            "configured": bool(os.getenv(config["api_key"], "").strip()),
+            **credential_status(provider_id),
             "default_model": config["default_model"],
             "display_model": config.get(
                 "display_model", config["default_model"]
             ),
-            "models": get_available_models(provider_id)
+            "setup_url": config.get("setup_url"),
+            "key_variable": config["api_key"],
+            "models": [] if provider_id in EXTERNAL_CONNECTIONS else get_available_models(provider_id)
         }
         for provider_id, config in PROVIDERS.items()
     ]
@@ -419,7 +488,7 @@ def daily_usage():
     }
 
 def refresh_openrouter_usage():
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = provider_key("openrouter")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY is missing")
 

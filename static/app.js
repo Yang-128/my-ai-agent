@@ -130,9 +130,87 @@ function openModelDiscovery() {
   for (const link of modelDialog.querySelectorAll("[data-provider]")) {
     link.closest("li").hidden = link.dataset.provider !== selectedProvider;
   }
+  const keyForm = document.getElementById("external-key-form");
+  keyForm.hidden = !providerConfigs[selectedProvider];
+  keyForm.reset();
+  document.getElementById("external-key-status").textContent =
+    credentialLabel(providerConfigs[selectedProvider]);
+  document.getElementById("remove-provider-key").hidden =
+    !providerConfigs[selectedProvider]?.can_remove_key;
   modelDialog.showModal();
   checkCatalog(true);
 }
+document.getElementById("external-key-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const field = document.getElementById("external-key");
+  const status = document.getElementById("external-key-status");
+  const provider = selectedProvider;
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/provider-connection/" + encodeURIComponent(provider), {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        key: field.value.trim(),
+        allow_unverified: document.getElementById("allow-unverified-key").checked
+      })
+    });
+    if (!response.ok) throw new Error((await response.json()).detail);
+    const connection = await response.json();
+    Object.assign(providerConfigs[provider], connection);
+    if (selectedProvider !== provider) return;
+    status.textContent = credentialLabel(connection);
+    document.getElementById("remove-provider-key").hidden =
+      !connection.can_remove_key;
+    await checkCatalog(true);
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    field.value = "";
+    button.disabled = false;
+  }
+});
+function credentialLabel(config) {
+  if (!config?.configured) return "No API key configured.";
+  const source = config.credential_source === "session"
+    ? "Server session"
+    : "Environment configuration";
+  return source + (config.credential_state === "verified"
+    ? " · Authentication verified"
+    : " · Key configured, authentication unverified");
+}
+
+document.getElementById("remove-provider-key").addEventListener("click", async event => {
+  const button = event.currentTarget;
+  const provider = selectedProvider;
+  const status = document.getElementById("external-key-status");
+
+  button.disabled = true;
+  try {
+    const response = await fetch(
+      "/api/provider-connection/" + encodeURIComponent(provider),
+      {method: "DELETE"}
+    );
+
+    const connection = await response.json();
+    if (!response.ok) throw new Error(connection.detail);
+
+    Object.assign(providerConfigs[provider], connection);
+
+    if (selectedProvider !== provider) return;
+
+    status.textContent = credentialLabel(connection);
+    button.hidden = !connection.can_remove_key;
+    await checkCatalog(true);
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+modelDialog.addEventListener("close", () => document.getElementById("external-key-form").reset());
 modelButton.addEventListener("click", openModelDiscovery);
 
 function getSelectedModelInfo() {
@@ -194,7 +272,7 @@ function renderDiscoveredModels() {
         const guide = document.getElementById("key-guide");
         guide.open = true;
         guide.scrollIntoView({block: "center"});
-        guide.querySelector(`[data-provider="${selectedProvider}"]`).focus({preventScroll: true});
+        guide.querySelector(`[data-provider="${selectedProvider}"]`)?.focus({preventScroll: true});
         return;
       }
       automaticModel = false;
@@ -345,17 +423,21 @@ async function findProviders() {
       if (offer.supported) {
         const use = document.createElement("button");
         use.className = "refresh-usage";
-        use.textContent = "View models";
+        use.textContent = providerConfigs[offer.id]?.setup_url ? "Add provider" : "View models";
         use.onclick = () => {
           document.getElementById("provider-discovery").close();
+          if (![...providerSelector.options].some(option => option.value === offer.id)) {
+            providerSelector.add(new Option(offer.name, offer.id), providerSelector.options.length - 1);
+          }
           selectedProvider = providerSelector.value = offer.id;
           automaticModel = true;
           populateModelSelector();
           openModelDiscovery();
+          if (!providerConfigs[offer.id]?.configured) document.getElementById("key-guide").open = true;
         };
         row.append(" ", use);
       } else {
-        row.append(" · External provider");
+        row.append(" · Sign up with the provider for API access. A compatible connection is still needed.");
       }
       list.append(row);
     }
@@ -384,11 +466,28 @@ async function refreshProviderStatus() {
     const providers = await response.json();
 
     providerConfigs = {};
-    document.getElementById("key-status").textContent = providers.map(p => p.name + (p.configured ? " · key configured" : " · key missing")).join(" | ");
+    document.getElementById("key-status").textContent = providers.map(p => p.name + " · " + credentialLabel(p)).join(" | ");
     providers.forEach(provider => {
       providerConfigs[provider.id] = provider;
     });
 
+    const keyList = document.querySelector("#key-guide ul");
+    for (const provider of providers.filter(item => item.setup_url)) {
+      if (provider.configured && ![...providerSelector.options].some(option => option.value === provider.id)) {
+        providerSelector.add(new Option(provider.name, provider.id), providerSelector.options.length - 1);
+      }
+      const entry = document.createElement("li");
+      const link = document.createElement("a");
+      link.dataset.provider = provider.id;
+      link.href = provider.setup_url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = provider.name + " key setup";
+      const variable = document.createElement("code");
+      variable.textContent = provider.key_variable;
+      entry.append(link, " · ", variable);
+      keyList.append(entry);
+    }
     const firstConnected = providers.find(p => p.configured);
     if (!providerConfigs[selectedProvider]?.configured && firstConnected) {
       selectedProvider = providerSelector.value = firstConnected.id;

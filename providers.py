@@ -78,12 +78,83 @@ PROVIDERS = {
 }
 
 
+EXTERNAL_CONNECTIONS = {
+    "vercel": ("Vercel AI Gateway", "AI_GATEWAY_API_KEY", "https://ai-gateway.vercel.sh/v1",
+               "https://vercel.com/docs/ai-gateway"),
+    "zenmux": ("ZenMux", "ZENMUX_API_KEY", "https://zenmux.ai/api/v1",
+               "https://docs.zenmux.ai/"),
+    "tokenrouter": ("TokenRouter", "TOKENROUTER_API_KEY", "https://api.tokenrouter.com/v1",
+                    "https://www.tokenrouter.com/docs/openclaw-setup/"),
+
+    "kilo": ("Kilo Gateway", "KILO_API_KEY", "https://ai-gateway.kilo.ai/api/v1",
+             "https://kilo.ai/docs/gateway/authentication"),
+    "opencode": ("OpenCode", "OPENCODE_API_KEY", "https://opencode.ai/inference/openai/v1",
+                 "https://opencode.ai/docs/console/api/inference/"),
+}
+for provider_id, (name, key, endpoint, guide) in EXTERNAL_CONNECTIONS.items():
+    PROVIDERS[provider_id] = {
+        "name": name, "api_key": key, "base_url": endpoint,
+        "setup_url": guide, "default_model": "", "recommended": [],
+    }
+
+
+SESSION_PROVIDER_KEYS = {}
+SESSION_PROVIDER_VALIDATION = {}
+
+
+def credential_status(provider):
+    if provider in SESSION_PROVIDER_KEYS:
+        return {
+            "configured": True,
+            "credential_state": SESSION_PROVIDER_VALIDATION.get(
+                provider, "unverified"
+            ),
+            "credential_source": "session",
+            "can_remove_key": True,
+        }
+
+    configured = bool(
+        os.getenv(PROVIDERS[provider]["api_key"], "").strip()
+    )
+    return {
+        "configured": configured,
+        "credential_state": "unverified" if configured else "missing",
+        "credential_source": "environment" if configured else "none",
+        "can_remove_key": False,
+    }
+
+
+def provider_key(provider):
+    return SESSION_PROVIDER_KEYS.get(provider) or os.getenv(PROVIDERS[provider]["api_key"], "").strip()
+
+
+def is_listed_free_chat(model):
+    cost = model.get("cost") or {}
+    modalities = model.get("modalities") or {}
+    return (bool(re.search(r"(?:^|[-:/ ])free(?:$|[-:/ )])", model.get("id", "").lower()))
+            and cost.get("input") == cost.get("output") == 0
+            and "text" in modalities.get("input", []) and "text" in modalities.get("output", [])
+            and model.get("status") != "deprecated")
+
+
+def external_free_models(provider):
+    directory = public_catalog("https://models.dev/api.json").json()
+    models = directory.get(provider, {}).get("models", {}).values()
+    return [{
+        "id": model["id"], "name": model.get("name") or model["id"],
+        "context_length": (model.get("limit") or {}).get("context") or 0,
+        "capabilities": {"text": True, "tools": bool(model.get("tool_call")),
+                         "image": "image" in model["modalities"]["input"]},
+        "free": True,
+    } for model in models if is_listed_free_chat(model)]
+
+
 def get_provider_client(provider_name):
     if provider_name not in PROVIDERS:
         raise ValueError("Unsupported provider")
 
     config = PROVIDERS[provider_name]
-    api_key = os.getenv(config["api_key"])
+    api_key = provider_key(provider_name)
 
     if not api_key:
         raise ValueError(f"{config['name']} API key is not configured")
@@ -96,6 +167,9 @@ def get_provider_client(provider_name):
             max_retries=0,
         )
 
+    if provider_name in EXTERNAL_CONNECTIONS:
+        return OpenAI(api_key=api_key, base_url=config["base_url"],
+                      http_client=httpx.Client(follow_redirects=False), timeout=45.0)
     return OpenAI(api_key=api_key, base_url=config["base_url"])
 
 
@@ -187,11 +261,13 @@ def rank_models(models, provider):
 
 
 def discover_free_models(provider="openrouter"):
-    if provider == "openrouter":
+    if provider in EXTERNAL_CONNECTIONS:
+        models = external_free_models(provider)
+    elif provider == "openrouter":
         models = free_chat_models(public_catalog("https://openrouter.ai/api/v1/models").json()["data"])
     else:
         ids = free_plan_ids(provider, public_catalog(FREE_TIER_PAGES[provider]).text)
-        available = {m["id"]: m for m in get_available_models(provider, strict=True)} if os.getenv(PROVIDERS[provider]["api_key"]) else None
+        available = {m["id"]: m for m in get_available_models(provider, strict=True)} if provider_key(provider) else None
         models = []
         for model_id in ids:
             if available is not None and model_id not in available:
@@ -208,7 +284,7 @@ def get_available_models(provider_name, *, strict=False):
         raise ValueError("Unsupported provider")
 
     config = PROVIDERS[provider_name]
-    api_key = os.getenv(config["api_key"])
+    api_key = provider_key(provider_name)
 
     if not api_key:
         return []
@@ -216,6 +292,8 @@ def get_available_models(provider_name, *, strict=False):
     models = []
 
     try:
+        if provider_name in EXTERNAL_CONNECTIONS:
+            return rank_models(external_free_models(provider_name), provider_name)
         if provider_name == "groq":
             client = get_provider_client(provider_name)
             available = client.models.list()

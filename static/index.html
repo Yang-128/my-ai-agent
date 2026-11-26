@@ -215,26 +215,78 @@
             <label>API key <input id="external-key" type="password" autocomplete="off" required></label>
             <label>
               <input id="allow-unverified-key" type="checkbox">
-              Allow an unverified session key only if automatic validation is unsupported.
+              Allow an unverified key only if automatic validation is unsupported.
+            </label>
+            <label id="persist-key-option" hidden>
+              <input id="persist-provider-key" type="checkbox">
+              Remember this API key in macOS Keychain
             </label>
             <button class="refresh-usage" type="submit">
               Validate and connect
             </button>
             <button class="refresh-usage" id="remove-provider-key" type="button" hidden>
-              Remove session key
+              Remove active key
             </button>
-            <p>Keys entered here are held in server memory until restart. Existing .env keys remain unchanged.</p>
+            <p>Keys are temporary unless you choose to save them in macOS Keychain. Existing .env keys remain unchanged.</p>
             <p id="external-key-status" role="status"></p>
           </form>
           <p id="key-status" role="status"></p>
         </details>
       </dialog>
 
-  <dialog id="provider-discovery" aria-labelledby="providers-heading">
-    <header><h2 id="providers-heading">Find free providers</h2><form method="dialog"><button class="refresh-usage">Close</button></form></header>
-    <p>Ranked by practical model capabilities (60%) and daily allowance (40%). Token caps assume 2,000 tokens per request. Unknown daily caps appear below the ranked list.</p>
-    <button id="find-providers" class="refresh-usage">Refresh providers</button>
-    <div id="provider-offers" aria-live="polite"></div>
+
+  <dialog id="provider-management" aria-labelledby="manage-provider-heading">
+    <header>
+      <h2 id="manage-provider-heading">Provider Manager</h2>
+      <form method="dialog">
+        <button class="refresh-usage">Close</button>
+      </form>
+    </header>
+
+    <nav class="provider-manager-tabs" aria-label="Provider Manager">
+      <button type="button" id="my-providers-tab"
+        aria-pressed="true">My providers</button>
+      <button type="button" id="discover-providers-tab"
+        aria-pressed="false">Discover providers</button>
+    </nav>
+
+    <section id="my-providers-panel">
+      <p>Manage your connected and previously added providers.</p>
+
+      <div id="provider-management-list"></div>
+
+      <button type="button" id="add-provider-shortcut"
+        class="refresh-usage">+ Discover new providers</button>
+
+      <div class="provider-manager-actions">
+        <button type="button" id="save-provider-configuration"
+          class="refresh-usage">Save changes</button>
+
+        <button type="button" id="export-provider-configuration"
+          class="refresh-usage">Export settings</button>
+
+        <label>Import settings
+          <input type="file" id="import-provider-configuration"
+            accept=".json,application/json">
+        </label>
+      </div>
+
+      <p>Removed providers can be restored here.
+        Removing a provider does not delete its credentials.</p>
+    </section>
+
+    <section id="discover-providers-panel" hidden>
+      <p>Ranked by practical model capabilities (60%) and daily
+        allowance (40%). Unknown daily caps appear below the ranked
+        list. Account terms and model availability may change.</p>
+
+      <button type="button" id="find-providers"
+        class="refresh-usage">Refresh providers</button>
+
+      <div id="provider-offers" aria-live="polite"></div>
+    </section>
+
+    <p id="provider-management-status" role="status"></p>
   </dialog>
 
   <dialog id="history-dialog" aria-labelledby="history-heading">

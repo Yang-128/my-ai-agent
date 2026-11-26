@@ -27,6 +27,15 @@ def model_display_name(model_id, official_name=None):
 import httpx
 from dotenv import load_dotenv
 from runtime import ENV_FILE
+from provider_configuration import (
+    preference,
+    is_enabled,
+)
+from provider_keychain import (
+    KeychainError,
+    keychain_supported,
+    read_saved_credential,
+)
 from openai import OpenAI
 
 load_dotenv(ENV_FILE, override=True)
@@ -102,9 +111,15 @@ SESSION_PROVIDER_KEYS = {}
 SESSION_PROVIDER_VALIDATION = {}
 
 
+
 def credential_status(provider):
+    status = {
+        "keychain_supported": keychain_supported(),
+    }
+
     if provider in SESSION_PROVIDER_KEYS:
         return {
+            **status,
             "configured": True,
             "credential_state": SESSION_PROVIDER_VALIDATION.get(
                 provider, "unverified"
@@ -113,10 +128,32 @@ def credential_status(provider):
             "can_remove_key": True,
         }
 
+    try:
+        saved = read_saved_credential(provider)
+    except KeychainError:
+        return {
+            **status,
+            "configured": False,
+            "credential_state": "storage_unavailable",
+            "credential_source": "keychain",
+            "can_remove_key": False,
+        }
+
+    if saved:
+        return {
+            **status,
+            "configured": True,
+            "credential_state": saved["state"],
+            "credential_source": "keychain",
+            "can_remove_key": True,
+        }
+
     configured = bool(
         os.getenv(PROVIDERS[provider]["api_key"], "").strip()
     )
+
     return {
+        **status,
         "configured": configured,
         "credential_state": "unverified" if configured else "missing",
         "credential_source": "environment" if configured else "none",
@@ -125,7 +162,21 @@ def credential_status(provider):
 
 
 def provider_key(provider):
-    return SESSION_PROVIDER_KEYS.get(provider) or os.getenv(PROVIDERS[provider]["api_key"], "").strip()
+    if provider in SESSION_PROVIDER_KEYS:
+        return SESSION_PROVIDER_KEYS[provider]
+
+    try:
+        saved = read_saved_credential(provider)
+    except KeychainError:
+        # Fail closed rather than silently using a different key.
+        return ""
+
+    if saved:
+        return saved["key"]
+
+    return os.getenv(
+        PROVIDERS[provider]["api_key"], ""
+    ).strip()
 
 
 def is_listed_free_chat(model):
@@ -149,9 +200,20 @@ def external_free_models(provider):
     } for model in models if is_listed_free_chat(model)]
 
 
+def provider_preference(provider):
+    return preference(provider, PROVIDERS)
+
+
+def provider_enabled(provider):
+    return is_enabled(provider, PROVIDERS)
+
+
 def get_provider_client(provider_name):
     if provider_name not in PROVIDERS:
         raise ValueError("Unsupported provider")
+
+    if not provider_enabled(provider_name):
+        raise ValueError("This provider is disabled or removed.")
 
     config = PROVIDERS[provider_name]
     api_key = provider_key(provider_name)
@@ -176,6 +238,9 @@ def get_provider_client(provider_name):
 def get_provider_model(provider_name):
     if provider_name not in PROVIDERS:
         raise ValueError("Unsupported provider")
+
+    if not provider_enabled(provider_name):
+        raise ValueError("This provider is disabled or removed.")
 
     config = PROVIDERS[provider_name]
     model = config["default_model"]
@@ -282,6 +347,9 @@ def discover_free_models(provider="openrouter"):
 def get_available_models(provider_name, *, strict=False):
     if provider_name not in PROVIDERS:
         raise ValueError("Unsupported provider")
+
+    if not provider_enabled(provider_name):
+        return []
 
     config = PROVIDERS[provider_name]
     api_key = provider_key(provider_name)

@@ -115,7 +115,7 @@ providerSelector.innerHTML = `
   <option value="groq">Groq</option>
   <option value="openrouter">OpenRouter</option>
   <option value="gemini">Google Gemini</option>
-  <option value="__find__">Find new provider…</option>
+  <option value="__manage__">Provider Manager…</option>
 `;
 form.parentElement.insertBefore(providerSelector, form);
 
@@ -126,6 +126,10 @@ const discoverOption = "__check_free_models__";
 const modelDialog = document.getElementById("model-discovery");
 
 function openModelDiscovery() {
+  if (!selectedProvider || !providerConfigs[selectedProvider]?.enabled) {
+    openProviderManagement();
+    return;
+  }
   document.getElementById("discovery-heading").textContent = (providerConfigs[selectedProvider]?.name || selectedProvider) + " free models";
   for (const link of modelDialog.querySelectorAll("[data-provider]")) {
     link.closest("li").hidden = link.dataset.provider !== selectedProvider;
@@ -133,6 +137,8 @@ function openModelDiscovery() {
   const keyForm = document.getElementById("external-key-form");
   keyForm.hidden = !providerConfigs[selectedProvider];
   keyForm.reset();
+  document.getElementById("persist-key-option").hidden =
+    !providerConfigs[selectedProvider]?.keychain_supported;
   document.getElementById("external-key-status").textContent =
     credentialLabel(providerConfigs[selectedProvider]);
   document.getElementById("remove-provider-key").hidden =
@@ -153,7 +159,8 @@ document.getElementById("external-key-form").addEventListener("submit", async ev
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
         key: field.value.trim(),
-        allow_unverified: document.getElementById("allow-unverified-key").checked
+        allow_unverified: document.getElementById("allow-unverified-key").checked,
+        persist_key: document.getElementById("persist-provider-key").checked
       })
     });
     if (!response.ok) throw new Error((await response.json()).detail);
@@ -172,12 +179,17 @@ document.getElementById("external-key-form").addEventListener("submit", async ev
   }
 });
 function credentialLabel(config) {
+  if (config?.credential_state === "storage_unavailable") {
+    return "Keychain unavailable. Unlock it and retry.";
+  }
   if (!config?.configured) return "No API key configured.";
   const source = config.credential_source === "session"
     ? "Server session"
-    : "Environment configuration";
+    : config.credential_source === "keychain"
+      ? "macOS Keychain"
+      : "Environment configuration";
   return source + (config.credential_state === "verified"
-    ? " · Authentication verified"
+    ? " · Authentication previously verified"
     : " · Key configured, authentication unverified");
 }
 
@@ -361,12 +373,304 @@ form.parentElement.insertBefore(providerStatus, form);
 
 function updateModelDisplay() {
   const provider = providerConfigs[selectedProvider];
-  const providerName = provider?.name || selectedProvider;
+  const providerName = provider
+    ? providerDisplayName(provider)
+    : "No provider selected";
   const model = getSelectedModelInfo()?.name || selectedModel || "No model selected";
 
   modelButton.textContent = `${providerName} · ${model}`;
   modelButton.title = `Active provider: ${providerName}\nModel: ${model}`;
 }
+
+function providerDisplayName(provider) {
+  return provider.configuration?.label || provider.name;
+}
+
+function rebuildProviderPicker(providers) {
+  const visible = providers.filter(p =>
+    p.enabled && (
+      p.configuration?.mode === "enabled" ||
+      !p.setup_url || p.configured
+    )
+  );
+
+  const previous = selectedProvider;
+
+  providerSelector.replaceChildren();
+
+  for (const provider of visible) {
+    providerSelector.add(new Option(
+      providerDisplayName(provider), provider.id
+    ));
+  }
+
+  providerSelector.add(new Option("Provider Manager…", "__manage__"));
+
+  selectedProvider = visible.some(p => p.id === previous)
+    ? previous
+    : (visible.find(p => p.configured)?.id || visible[0]?.id || "");
+
+  if (selectedProvider !== previous) {
+    automaticModel = true;
+    selectedModel = "";
+  }
+
+  providerSelector.value = selectedProvider;
+}
+
+async function configurationRequest(method = "GET", payload) {
+  const options = {method, cache: "no-store"};
+
+  if (payload !== undefined) {
+    options.headers = {"Content-Type": "application/json"};
+    options.body = JSON.stringify(payload);
+  }
+
+  const response = await fetch("/api/provider-configuration", options);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.detail || "Configuration request failed.");
+  }
+
+  return data;
+}
+
+const managementDialog = document.getElementById("provider-management");
+const managementList = document.getElementById("provider-management-list");
+const managementStatus = document.getElementById("provider-management-status");
+
+let providerSettingsDirty = false;
+let providerDiscoveryLoaded = false;
+
+function showProviderManagerTab(tab) {
+  const discover = tab === "discover";
+
+  document.getElementById("my-providers-panel").hidden = discover;
+  document.getElementById("discover-providers-panel").hidden = !discover;
+
+  document.getElementById("my-providers-tab")
+    .setAttribute("aria-pressed", String(!discover));
+
+  document.getElementById("discover-providers-tab")
+    .setAttribute("aria-pressed", String(discover));
+
+  if (discover && !providerDiscoveryLoaded) {
+    providerDiscoveryLoaded = true;
+    findProviders();
+  }
+}
+
+document.getElementById("my-providers-tab").onclick =
+  () => showProviderManagerTab("my");
+
+document.getElementById("discover-providers-tab").onclick =
+  () => showProviderManagerTab("discover");
+
+document.getElementById("add-provider-shortcut").onclick =
+  () => showProviderManagerTab("discover");
+
+managementList.addEventListener("input", () => {
+  providerSettingsDirty = true;
+});
+
+async function openProviderSetup(id) {
+  if (providerSettingsDirty && !confirm(
+    "Discard unsaved provider settings and continue?"
+  )) return;
+
+  const provider = providerConfigs[id];
+
+  if (!provider) {
+    alert("Provider configuration is unavailable.");
+    return;
+  }
+
+  try {
+    if (!provider.enabled ||
+        ![...providerSelector.options].some(o => o.value === id)) {
+
+      const configuration = await configurationRequest();
+
+      configuration.providers[id] = {
+        mode: "enabled",
+        label: configuration.providers[id]?.label || ""
+      };
+
+      await applyProviderConfiguration(configuration);
+    }
+
+    selectedProvider = providerSelector.value = id;
+    automaticModel = true;
+    selectedModel = "";
+
+    populateModelSelector();
+
+    providerSettingsDirty = false;
+    managementDialog.close();
+
+    openModelDiscovery();
+
+    if (!providerConfigs[id]?.configured) {
+      document.getElementById("key-guide").open = true;
+    }
+
+  } catch (error) {
+    managementStatus.textContent = error.message;
+    alert(error.message);
+  }
+}
+
+async function openProviderManagement() {
+  managementList.replaceChildren();
+  providerSettingsDirty = false;
+  providerDiscoveryLoaded = false;
+  showProviderManagerTab("my");
+  managementStatus.textContent = "";
+  managementDialog.showModal();
+
+  try {
+    const configuration = await configurationRequest();
+
+    for (const provider of Object.values(providerConfigs)) {
+      const pref = configuration.providers[provider.id] || {
+        mode: "auto", label: ""
+      };
+
+      if (!provider.configured &&
+          provider.setup_url &&
+          pref.mode === "auto" &&
+          !pref.label) continue;
+
+      const row = document.createElement("article");
+      row.dataset.provider = provider.id;
+
+      const title = document.createElement("strong");
+      title.textContent = provider.name;
+
+      const mode = document.createElement("select");
+      mode.setAttribute("aria-label", provider.name + " availability");
+
+      for (const [value, label] of [
+        ["auto", "Automatic"],
+        ["enabled", "Enabled"],
+        ["disabled", "Disabled"],
+        ["removed", "Removed"]
+      ]) {
+        mode.add(new Option(label, value));
+      }
+
+      mode.value = pref.mode;
+
+      const label = document.createElement("input");
+      label.placeholder = "Optional display name";
+      label.maxLength = 80;
+      label.value = pref.label;
+
+      const status = document.createElement("small");
+      status.textContent = credentialLabel(provider);
+
+      const setup = document.createElement("button");
+      setup.type = "button";
+      setup.className = "refresh-usage";
+      setup.textContent = provider.enabled
+        ? "Configure models & API key"
+        : "Enable & configure";
+
+      setup.onclick = () => openProviderSetup(provider.id);
+
+      row.append(title, mode, label, status, setup);
+      managementList.append(row);
+    }
+  } catch (error) {
+    managementStatus.textContent = error.message;
+  }
+}
+
+async function applyProviderConfiguration(payload) {
+  await configurationRequest("PUT", payload);
+
+  freeCatalogs.clear();
+  catalogRequest++;
+  selectedModel = "";
+  automaticModel = true;
+
+  await refreshProviderStatus();
+}
+
+document.getElementById("save-provider-configuration").onclick = async () => {
+  let providers;
+
+  try {
+    providers = (await configurationRequest()).providers;
+  } catch (error) {
+    managementStatus.textContent = error.message;
+    return;
+  }
+
+  for (const row of managementList.querySelectorAll("[data-provider]")) {
+    providers[row.dataset.provider] = {
+      mode: row.querySelector("select").value,
+      label: row.querySelector("input").value
+    };
+  }
+
+  if (!Object.keys(providers).length) return;
+
+  try {
+    await applyProviderConfiguration({version: 1, providers});
+    providerSettingsDirty = false;
+    managementStatus.textContent = "Configuration saved.";
+  } catch (error) {
+    managementStatus.textContent = error.message;
+  }
+};
+
+document.getElementById("export-provider-configuration").onclick = async () => {
+  try {
+    const configuration = await configurationRequest();
+
+    const url = URL.createObjectURL(new Blob(
+      [JSON.stringify(configuration, null, 2)],
+      {type: "application/json"}
+    ));
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "my-ai-agent-providers.json";
+    link.click();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    managementStatus.textContent = "Secret-free configuration exported.";
+  } catch (error) {
+    managementStatus.textContent = error.message;
+  }
+};
+
+document.getElementById("import-provider-configuration").onchange = async event => {
+  const file = event.target.files[0];
+
+  if (!file) return;
+
+  try {
+    if (file.size > 32768) throw new Error("Configuration file is too large.");
+
+    const payload = JSON.parse(await file.text());
+
+    if (!confirm("Replace provider settings with this file? API keys will not be changed.")) return;
+
+    await applyProviderConfiguration(payload);
+
+    managementDialog.close();
+    await openProviderManagement();
+
+    managementStatus.textContent = "Configuration imported.";
+  } catch (error) {
+    managementStatus.textContent = error.message;
+  } finally {
+    event.target.value = "";
+  }
+};
 
 function selectProvider(id) {
   selectedProvider = providerSelector.value = id;
@@ -378,10 +682,9 @@ function selectProvider(id) {
 }
 
 providerSelector.addEventListener("change", () => {
-  if (providerSelector.value === "__find__") {
+  if (providerSelector.value === "__manage__") {
     providerSelector.value = selectedProvider;
-    document.getElementById("provider-discovery").showModal();
-    findProviders();
+    openProviderManagement();
   } else {
     selectProvider(providerSelector.value);
   }
@@ -424,17 +727,11 @@ async function findProviders() {
         const use = document.createElement("button");
         use.className = "refresh-usage";
         use.textContent = providerConfigs[offer.id]?.setup_url ? "Add provider" : "View models";
-        use.onclick = () => {
-          document.getElementById("provider-discovery").close();
-          if (![...providerSelector.options].some(option => option.value === offer.id)) {
-            providerSelector.add(new Option(offer.name, offer.id), providerSelector.options.length - 1);
-          }
-          selectedProvider = providerSelector.value = offer.id;
-          automaticModel = true;
-          populateModelSelector();
-          openModelDiscovery();
-          if (!providerConfigs[offer.id]?.configured) document.getElementById("key-guide").open = true;
-        };
+        use.textContent = providerConfigs[offer.id]?.configured
+          ? "Configure provider"
+          : "Add provider";
+
+        use.onclick = () => openProviderSetup(offer.id);
         row.append(" ", use);
       } else {
         row.append(" · Sign up with the provider for API access. A compatible connection is still needed.");
@@ -471,12 +768,15 @@ async function refreshProviderStatus() {
       providerConfigs[provider.id] = provider;
     });
 
+    rebuildProviderPicker(providers);
+
     const keyList = document.querySelector("#key-guide ul");
+    keyList.querySelectorAll("[data-added-provider]").forEach(
+      item => item.remove()
+    );
     for (const provider of providers.filter(item => item.setup_url)) {
-      if (provider.configured && ![...providerSelector.options].some(option => option.value === provider.id)) {
-        providerSelector.add(new Option(provider.name, provider.id), providerSelector.options.length - 1);
-      }
       const entry = document.createElement("li");
+      entry.dataset.addedProvider = "true";
       const link = document.createElement("a");
       link.dataset.provider = provider.id;
       link.href = provider.setup_url;
@@ -488,7 +788,10 @@ async function refreshProviderStatus() {
       entry.append(link, " · ", variable);
       keyList.append(entry);
     }
-    const firstConnected = providers.find(p => p.configured);
+    const firstConnected = providers.find(p =>
+      p.enabled && p.configured &&
+      [...providerSelector.options].some(o => o.value === p.id)
+    );
     if (!providerConfigs[selectedProvider]?.configured && firstConnected) {
       selectedProvider = providerSelector.value = firstConnected.id;
     }
@@ -1597,6 +1900,11 @@ async function newChat() {
 
 async function sendMessage(text) {
   if ((!text.trim() && !pendingImages.length) || busy) return;
+
+  if (!selectedProvider || !providerConfigs[selectedProvider]?.enabled) {
+    alert("Enable a provider before sending a message.");
+    return;
+  }
 
   if (!currentConversationId) {
     await newChat();

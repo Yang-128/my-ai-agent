@@ -19,6 +19,17 @@ from storage import (
     record_usage,
 )
 from provider_ranking import ranked_providers
+from provider_configuration import (
+    ConfigurationError,
+    load_configuration,
+    save_configuration,
+)
+from providers import provider_preference, provider_enabled
+from provider_keychain import (
+    KeychainError,
+    save_saved_credential,
+    delete_saved_credential,
+)
 from provider_credentials import (
     validate_provider_key,
     CredentialValidationError,
@@ -332,6 +343,8 @@ def conversation_detail(conversation_id: str):
 def check_free_models(provider: str = "openrouter"):
     if provider not in PROVIDERS:
         raise HTTPException(422, "Unknown provider.")
+    if not provider_enabled(provider):
+        raise HTTPException(409, "This provider is disabled or removed.")
     try:
         models = discover_free_models(provider)
     except Exception as error:
@@ -392,8 +405,17 @@ def connect_provider(provider: str, request: Request, body: dict):
         ) from None
 
     # Do not replace existing credentials before validation succeeds.
-    SESSION_PROVIDER_KEYS[provider] = key
-    SESSION_PROVIDER_VALIDATION[provider] = state
+    if body.get("persist_key") is True:
+        try:
+            save_saved_credential(provider, key, state)
+        except KeychainError as error:
+            raise HTTPException(503, str(error)) from None
+
+        SESSION_PROVIDER_KEYS.pop(provider, None)
+        SESSION_PROVIDER_VALIDATION.pop(provider, None)
+    else:
+        SESSION_PROVIDER_KEYS[provider] = key
+        SESSION_PROVIDER_VALIDATION[provider] = state
 
     return credential_status(provider)
 
@@ -405,10 +427,34 @@ def disconnect_provider(provider: str, request: Request):
     if provider not in PROVIDERS:
         raise HTTPException(404, "Unsupported provider.")
 
-    SESSION_PROVIDER_KEYS.pop(provider, None)
-    SESSION_PROVIDER_VALIDATION.pop(provider, None)
+    if provider in SESSION_PROVIDER_KEYS:
+        SESSION_PROVIDER_KEYS.pop(provider, None)
+        SESSION_PROVIDER_VALIDATION.pop(provider, None)
+    else:
+        try:
+            delete_saved_credential(provider)
+        except KeychainError as error:
+            raise HTTPException(503, str(error)) from None
 
     return credential_status(provider)
+
+
+@app.get("/api/provider-configuration")
+def export_provider_configuration():
+    try:
+        return load_configuration(PROVIDERS)
+    except ConfigurationError as error:
+        raise HTTPException(422, str(error)) from None
+
+
+@app.put("/api/provider-configuration")
+def import_provider_configuration(request: Request, body: dict):
+    require_local_provider_request(request)
+
+    try:
+        return save_configuration(body, PROVIDERS)
+    except ConfigurationError as error:
+        raise HTTPException(422, str(error)) from None
 
 
 @app.get("/api/providers")
@@ -417,6 +463,8 @@ def provider_status():
         {
             "id": provider_id,
             "name": config["name"],
+            "configuration": provider_preference(provider_id),
+            "enabled": provider_enabled(provider_id),
             **credential_status(provider_id),
             "default_model": config["default_model"],
             "display_model": config.get(
@@ -424,7 +472,10 @@ def provider_status():
             ),
             "setup_url": config.get("setup_url"),
             "key_variable": config["api_key"],
-            "models": [] if provider_id in EXTERNAL_CONNECTIONS else get_available_models(provider_id)
+            "models": [] if (
+                provider_id in EXTERNAL_CONNECTIONS
+                or not provider_enabled(provider_id)
+            ) else get_available_models(provider_id)
         }
         for provider_id, config in PROVIDERS.items()
     ]
@@ -505,6 +556,9 @@ def refresh_usage():
     results = {}
 
     for provider_id in ("groq", "gemini", "openrouter"):
+        if not provider_enabled(provider_id):
+            results[provider_id] = "disabled"
+            continue
         try:
             model = get_provider_model(provider_id)
 

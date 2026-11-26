@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 import app
 import storage
+from provider_ranking import evaluate, groq_limits, router_limit
 from providers import free_chat_models, free_plan_ids, rank_models
 
 
@@ -36,6 +37,24 @@ class CapabilityTests(unittest.TestCase):
         text = {"id": "large", "context_length": 200000, "capabilities": {"text": True}}
         agent = {"id": "agent", "context_length": 32000, "capabilities": {"tools": True}}
         self.assertEqual(rank_models([text, agent], "openrouter")[0]["id"], "agent")
+
+    def test_provider_score_balances_features_and_the_tighter_daily_limit(self):
+        model = {"tool_call": True, "reasoning": True}
+        limited, _ = evaluate(model, 1000, 10000)
+        equivalent, _ = evaluate(model, 5, None)
+        generous, _ = evaluate(model, 1000, None)
+        unknown, _ = evaluate(model, None, None)
+        plain, _ = evaluate({}, 1000, None)
+        self.assertEqual(limited, equivalent)
+        self.assertGreater(generous, limited)
+        self.assertGreater(generous, plain)
+        self.assertFalse(unknown[0])
+
+    def test_quota_parsing_uses_named_columns_and_no_purchase_tier(self):
+        page = "<table><tr><th>Free Plan Limits</th></tr><tr><th>MODEL ID</th><th>TPD</th><th>RPD</th></tr></table><table><tr><td>demo</td><td>2.5K</td><td>100</td></tr></table>"
+        self.assertEqual(groq_limits(page)["demo"], (100, 2500))
+        self.assertEqual(router_limit("| Less than 10 | 20 | 50 |\n| At least 10 | 20 | 1000 |"), 50)
+        self.assertIsNone(router_limit("missing table"))
 
     def test_document_navigation_preserves_dotted_folders(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(app, "DOCUMENTS_ROOT", Path(folder)):

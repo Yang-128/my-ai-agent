@@ -1971,3 +1971,6 @@ button {
 #provider-discovery a { color: var(--accent); }
 #provider-discovery header { display: flex; justify-content: space-between; align-items: center; }
 #provider-discovery::backdrop, #model-discovery::backdrop { background: rgb(0 0 0 / 60%); }
+
+#provider-offers article { padding: 12px 0; border-top: 1px solid var(--border); }
+#provider-offers article p { margin: 5px 0; }

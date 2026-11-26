@@ -107,6 +107,8 @@ def create_pending_calendar_action(arguments, conversation_id, action):
         raise ValueError("An existing event ID is required.")
 
     event = {}
+    if action == "delete" and arguments.get("summary"):
+        event["summary"] = str(arguments["summary"])
     if action in {"create", "update"}:
         summary = str(
             arguments.get("summary")

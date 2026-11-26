@@ -22,10 +22,10 @@
 
     <button class="new-chat" onclick="newChat()">＋ New chat</button>
 
-    <div class="side-label">WORKSPACE</div>
+    <div class="side-label">NAVIGATION</div>
     <button class="nav-item active" id="chat-nav">💬 &nbsp; Chat</button>
     <button class="nav-item" id="usage-nav">📊 &nbsp; Usage</button>
-    <button class="nav-item" id="tools-nav">🧰 &nbsp; Tools & MCP</button>
+    <button class="nav-item" id="tools-nav">🧰 &nbsp; Tools</button>
     <button class="nav-item" id="files-nav">📁 &nbsp; Files</button>
 
     <div class="side-label history-label">RECENT</div>
@@ -36,7 +36,7 @@
     <div class="sidebar-bottom">
       <div class="avatar">A</div>
       <div class="profile">
-        <strong>Local Workspace</strong>
+        <strong>My AI Agent</strong>
         <span>Personal AI Agent</span>
       </div>
       <span class="settings">⚙</span>
@@ -45,7 +45,7 @@
 
   <main class="main">
     <header class="topbar">
-      <div class="breadcrumb">Workspace <span>/</span> Chat</div>
+      <div class="breadcrumb">Chat</div>
       <div class="top-right">
         <span class="status"><i></i> Online</span>
         <button class="model-button">GPT OSS 120B ▾</button>
@@ -56,7 +56,6 @@
       <div class="welcome" id="welcome">
         <div class="welcome-icon">✳</div>
         <h1>What can I help you with?</h1>
-        <p>Your personal AI workspace. Ask, create, explore, and get things done.</p>
 
         <div class="suggestions">
           <button onclick="useSuggestion('Help me organize my projects')">
@@ -86,6 +85,27 @@
         <p>Monitor your AI providers and model limits.</p>
       </div>
 
+      <section class="usage-section" id="model-discovery">
+        <h2>Free models</h2>
+        <button type="button" id="check-models" class="refresh-usage">Check for free models</button>
+        <label>Compare by <select id="model-priority">
+          <option value="tools">Tool calling</option><option value="context">Context length</option>
+          <option value="image">Image input</option><option value="created">Newest listing</option>
+        </select></label>
+        <p id="catalog-status" role="status"></p>
+        <div id="catalog-results"></div>
+        <details id="key-guide"><summary>Connect an API key</summary>
+          <p>Create a key with your provider. On the computer running My AI Agent, open the project’s <code>.env</code> file and set the matching entry to your key.</p>
+          <ul>
+            <li><a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">OpenRouter keys</a> · <code>OPENROUTER_API_KEY</code></li>
+            <li><a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">Groq keys</a> · <code>GROQ_API_KEY</code></li>
+            <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio keys</a> · <code>GEMINI_API_KEY</code></li>
+          </ul>
+          <p>Save the file, restart the server, and refresh this page. The connection status updates when the app reloads.</p>
+          <p id="key-status" role="status"></p>
+        </details>
+      </section>
+
       <div class="usage-summary" id="usage-summary"></div>
 
       <div class="usage-section">
@@ -105,13 +125,22 @@
     <section class="tools-page" id="tools-page" style="display:none">
       <div class="tools-heading">
         <div>
-          <h1>Tools & MCP</h1>
-          <p>Tools your agent can use to perform calculations, access project files, and retrieve previous conversations.</p>
+          <h1>Tools</h1>
+          <p>Choose which capabilities your agent can use.</p>
         </div>
         <button class="refresh-usage" id="refresh-tools">↻ Refresh tools</button>
       </div>
 
 
+      <div class="tools-summary" id="tools-summary"></div>
+
+      <div class="tools-section">
+        <h2>Available tools</h2>
+        <div class="tools-grid" id="tools-list">
+          <p class="tools-empty">Loading tools...</p>
+        </div>
+      </div>
+      <details class="tool-connections"><summary>Google connections</summary>
       <section id="google-calendar-panel" class="tools-section" style="margin:24px 0;padding:20px;border:1px solid var(--border-color, #444);border-radius:12px">
         <h2>Google Calendar</h2>
         <p id="google-calendar-status">Checking connection...</p>
@@ -123,15 +152,7 @@
         <p id="google-gmail-status">Checking connection...</p>
         <button type="button" class="refresh-usage" id="google-gmail-connect">Connect Gmail</button>
       </section>
-
-      <div class="tools-summary" id="tools-summary"></div>
-
-      <div class="tools-section">
-        <h2>Available tools</h2>
-        <div class="tools-grid" id="tools-list">
-          <p class="tools-empty">Loading tools...</p>
-        </div>
-      </div>
+      </details>
     </section>
 
 
@@ -139,17 +160,13 @@
       <div class="files-heading">
         <div>
           <h1>Files</h1>
-          <p>Browse project files and documents created by your agent.</p>
+          <p>Browse and preview documents created by your agent.</p>
         </div>
         <button class="refresh-usage" id="refresh-files">↻ Refresh</button>
       </div>
       <div class="files-browser">
         <div class="files-toolbar">
-          <div id="files-breadcrumb" class="files-breadcrumb">Workspace</div>
-          <select id="files-location" class="files-location" aria-label="File location">
-            <option value="workspace">Project Workspace</option>
-            <option value="documents">My AI Agent Documents</option>
-          </select>
+          <div id="files-breadcrumb" class="files-breadcrumb">My AI Agent Documents</div>
           <button id="files-up" class="files-up" disabled>↑ Up</button>
         </div>
         <div class="files-content">
@@ -202,7 +219,7 @@
     </header>
   </dialog>
 
-  <script src="/static/app.js?v=full-history-titles"></script>
+  <script src="/static/app.js?v=capability-groups"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>

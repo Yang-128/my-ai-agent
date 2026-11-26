@@ -18,40 +18,40 @@
 
 ### Page structure — `static/index.html`
 
-- **L83** Usage page: `<section class="usage-page" id="usage-page" style="display:none">`
-- **L89** Summary container: `<div class="usage-summary" id="usage-summary"></div>`
-- **L93** Provider status container: `<div class="provider-status-grid" id="provider-status"></div>`
-- **L98** Model rows container: `<div class="usage-model-grid" id="usage-rows"></div>`
-- **L102** Refresh control: `<button class="refresh-usage" id="refresh-usage">↻ Refresh usage</button>`
+- **L82** Usage page: `<section class="usage-page" id="usage-page" style="display:none">`
+- **L109** Summary container: `<div class="usage-summary" id="usage-summary"></div>`
+- **L113** Provider status container: `<div class="provider-status-grid" id="provider-status"></div>`
+- **L118** Model rows container: `<div class="usage-model-grid" id="usage-rows"></div>`
+- **L122** Refresh control: `<button class="refresh-usage" id="refresh-usage">↻ Refresh usage</button>`
 
 ### Frontend behavior — `static/app.js`
 
-- **L1833** Page navigation: `async function showUsage() {`
-- **L1848** Return navigation: `function showChat() {`
-- **L1863** Reset countdown renderer: `function updateResetCountdowns() {`
-- **L1907** Usage data loading and rendering: `async function refreshUsage() {`
-- **L1916** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
-- **L1925** Usage API request: `const response = await fetch("/api/usage");`
-- **L1977** Daily quota status: `function isDailyLimitReached(item) {`
-- **L1990** Quota availability check: `function hasKnownDailyLimit(item) {`
-- **L2098** Quota formatting: `function quotaText(used, limit) {`
-- **L2213** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
-- **L2237** Refresh event: `.addEventListener("click", refreshUsage);`
+- **L1755** Page navigation: `async function showUsage() {`
+- **L1770** Return navigation: `function showChat() {`
+- **L1785** Reset countdown renderer: `function updateResetCountdowns() {`
+- **L1829** Usage data loading and rendering: `async function refreshUsage() {`
+- **L1838** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
+- **L1847** Usage API request: `const response = await fetch("/api/usage");`
+- **L1899** Daily quota status: `function isDailyLimitReached(item) {`
+- **L1912** Quota availability check: `function hasKnownDailyLimit(item) {`
+- **L2020** Quota formatting: `function quotaText(used, limit) {`
+- **L2135** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
+- **L2159** Refresh event: `.addEventListener("click", refreshUsage);`
 
 ### Backend API and refresh — `app.py`
 
-- **L418** Usage route: `@app.get("/api/usage")`
-- **L419** Usage API handler: `def daily_usage():`
-- **L421** Storage interaction: `"daily": get_daily_usage(),`
-- **L422** Storage interaction: `"turns": get_turn_usage()`
-- **L425** OpenRouter quota lookup: `def refresh_openrouter_usage():`
-- **L438** Usage route: `@app.post("/api/usage/refresh")`
-- **L439** Provider refresh handler: `def refresh_usage():`
-- **L451** Storage interaction: `record_usage(`
-- **L475** Storage interaction: `record_usage(`
-- **L492** Storage interaction: `"usage": get_daily_usage(),`
-- **L493** Storage interaction: `"turns": get_turn_usage()`
-- **L497** Provider header parser: `def _int_header(headers, name):`
+- **L439** Usage route: `@app.get("/api/usage")`
+- **L440** Usage API handler: `def daily_usage():`
+- **L442** Storage interaction: `"daily": get_daily_usage(),`
+- **L443** Storage interaction: `"turns": get_turn_usage()`
+- **L446** OpenRouter quota lookup: `def refresh_openrouter_usage():`
+- **L459** Usage route: `@app.post("/api/usage/refresh")`
+- **L460** Provider refresh handler: `def refresh_usage():`
+- **L472** Storage interaction: `record_usage(`
+- **L496** Storage interaction: `record_usage(`
+- **L513** Storage interaction: `"usage": get_daily_usage(),`
+- **L514** Storage interaction: `"turns": get_turn_usage()`
+- **L518** Provider header parser: `def _int_header(headers, name):`
 
 ### Usage persistence and aggregation — `storage.py`
 

@@ -112,6 +112,39 @@ def get_provider_model(provider_name):
     return model
 
 
+def free_chat_models(catalog):
+    """Read public chat capabilities and explicitly zero-priced models."""
+    models = []
+    for model in catalog:
+        architecture = model.get("architecture") or {}
+        inputs = architecture.get("input_modalities") or []
+        outputs = architecture.get("output_modalities") or []
+        pricing = model.get("pricing") or {}
+        if (not model.get("id") or "text" not in inputs or outputs != ["text"]
+                or not {"prompt", "completion"} <= pricing.keys()
+                or any(str(price) not in {"0", "0.0", "0.00"} for price in pricing.values())):
+            continue
+        models.append({
+            "id": model["id"],
+            "name": model_display_name(model["id"], model.get("name")),
+            "context_length": model.get("context_length") or 0,
+            "created": model.get("created") or 0,
+            "capabilities": {
+                "text": True, "image": "image" in inputs,
+                "document": "file" in inputs or "pdf" in inputs,
+                "tools": "tools" in (model.get("supported_parameters") or []),
+            },
+            "free": True,
+        })
+    return models
+
+
+def discover_free_models():
+    response = httpx.get("https://openrouter.ai/api/v1/models", timeout=15)
+    response.raise_for_status()
+    return free_chat_models(response.json()["data"])
+
+
 def get_available_models(provider_name):
     if provider_name not in PROVIDERS:
         raise ValueError("Unsupported provider")
@@ -161,32 +194,7 @@ def get_available_models(provider_name):
             )
             response.raise_for_status()
 
-            for model in response.json().get("data", []):
-                model_id = model.get("id", "")
-                architecture = model.get("architecture", {})
-                modality = architecture.get("modality", "")
-
-                if not model_id or modality not in ("text->text", "text+image->text"):
-                    continue
-
-                pricing = model.get("pricing", {})
-                if pricing.get("prompt") != "0" or pricing.get("completion") != "0":
-                    continue
-
-                input_modalities = architecture.get("input_modalities", [])
-                models.append({
-                    "id": model_id,
-                    "name": model_display_name(model_id, model.get("name")),
-                    "capabilities": {
-                        "text": "text" in input_modalities,
-                        "image": "image" in input_modalities,
-                        "document": "file" in input_modalities or "pdf" in input_modalities,
-                    },
-                    "free": (
-                        model.get("pricing", {}).get("prompt") == "0"
-                        and model.get("pricing", {}).get("completion") == "0"
-                    ),
-                })
+            models.extend(free_chat_models(response.json()["data"]))
 
         elif provider_name == "gemini":
             response = httpx.get(
@@ -231,7 +239,7 @@ def get_available_models(provider_name):
                 })
 
     except Exception as error:
-        print(f"Model discovery failed for {provider_name}: {error}")
+        print(f"Model discovery failed for {provider_name}: {type(error).__name__}")
         return []
 
     by_id = {model["id"]: model for model in models}

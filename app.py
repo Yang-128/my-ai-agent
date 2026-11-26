@@ -18,9 +18,9 @@ from storage import (
     get_turn_usage,
     record_usage,
     get_tool_settings,
-    set_tool_enabled
+    set_tool_enabled, set_tools_enabled
 )
-from providers import PROVIDERS, get_provider_client, get_provider_model, get_available_models
+from providers import discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
 from calendar_approval import (
     get_pending_calendar_event, discard_pending_calendar_event,
@@ -153,10 +153,10 @@ def browse_documents(path: str = ""):
         raise HTTPException(status_code=400, detail=str(error))
 
     items.sort(key=lambda item: (item["type"] != "directory", item["name"].lower()))
-    current = directory.relative_to(DOCUMENTS_ROOT).as_posix()
+    parts = directory.relative_to(DOCUMENTS_ROOT).parts
     return {
-        "path": "" if current == "." else current,
-        "parent": str(Path(current).parent).replace(".", "", 1) if current != "." else None,
+        "path": "/".join(parts),
+        "parent": "/".join(parts[:-1]) if parts else None,
         "items": items,
     }
 
@@ -325,6 +325,15 @@ def conversation_detail(conversation_id: str):
     return result
 
 
+@app.get("/api/free-models")
+def check_free_models():
+    try:
+        models = discover_free_models()
+    except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
+        raise HTTPException(502, "Could not check OpenRouter’s catalog. Try again.") from error
+    return {"models": models, "configured": bool(os.getenv("OPENROUTER_API_KEY", "").strip())}
+
+
 @app.get("/api/providers")
 def provider_status():
     return [
@@ -358,6 +367,18 @@ def tools_status():
     ]
 
 
+
+
+@app.post("/api/tool-settings/batch")
+def update_tool_settings(body: dict):
+    names, enabled = body.get("names"), body.get("enabled")
+    if not isinstance(enabled, bool) or not isinstance(names, list) or not names or not all(isinstance(n, str) for n in names):
+        raise HTTPException(422, "Provide tool names and an enabled setting.")
+    available = {item["function"]["name"] for item in get_all_tool_definitions()}
+    if set(names) - available:
+        raise HTTPException(404, "One or more tools are unavailable. Refresh Tools.")
+    set_tools_enabled(set(names), enabled)
+    return {"enabled": enabled}
 
 
 @app.post("/api/tools/{tool_name}/enabled")

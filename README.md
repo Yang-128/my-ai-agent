@@ -62,9 +62,9 @@ There is no automatic image-to-text fallback. The application does not first sen
 
 ## Testing
 
-Run the offline checks with Python 3.12 and Node.js 22 on your PATH.
+After installing the project requirements, run the checks with Node.js 22 on your PATH.
 
-    python3 scripts/check.py
+    .venv/bin/python scripts/check.py
 
 GitHub Actions runs the same command on pushes and pull requests. It checks Python and browser JavaScript syntax and runs the unit tests in `tests/` with a temporary application data directory. Add new unit tests in files named `test_*.py`. An empty suite fails the check.
 

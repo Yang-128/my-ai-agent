@@ -464,9 +464,99 @@ function scrollToBottom() {
   area.scrollTop = area.scrollHeight;
 }
 
+function renderTaskApprovalCard(message, pending) {
+  const task = pending.proposal;
+  const headings = {
+    create: "Create Google Task",
+    update: "Update Google Task",
+    delete: "Delete Google Task"
+  };
+  if (!pending.pending_id || !task || !Object.hasOwn(headings, task.action)) return;
+
+  const card = document.createElement("section");
+  card.className = "calendar-approval-card";
+  const heading = document.createElement("h3");
+  heading.textContent = headings[task.action];
+  card.appendChild(heading);
+
+  function addDetail(label, value) {
+    const row = document.createElement("p");
+    const name = document.createElement("strong");
+    name.textContent = `${label}: `;
+    row.append(name, document.createTextNode(value));
+    card.appendChild(row);
+  }
+
+  function display(field, value) {
+    if (value == null || value === "") return "(none)";
+    if (field === "status") {
+      if (value === "completed") return "Completed";
+      if (value === "needsAction") return "Incomplete";
+    }
+    return String(value);
+  }
+
+  addDetail("List", task.task_list_title);
+  addDetail("Task", task.task_title);
+  const labels = { title: "Title", notes: "Notes", due: "Due date", status: "Status" };
+  for (const [field, label] of Object.entries(labels)) {
+    if (task.action === "delete") {
+      if (field !== "title" && task.current?.[field]) {
+        addDetail(label, display(field, task.current[field]));
+      }
+      continue;
+    }
+    if (!Object.hasOwn(task.changes || {}, field)) continue;
+    if (field === "title" && task.action === "create") continue;
+    const next = display(field, task.changes[field]);
+    addDetail(label, task.action === "update"
+      ? `${display(field, task.current?.[field])} → ${next}`
+      : next);
+  }
+
+  const approve = document.createElement("button");
+  const decline = document.createElement("button");
+  approve.type = decline.type = "button";
+  approve.textContent = task.action === "delete" ? "Approve deletion" : "Approve";
+  decline.textContent = "Decline";
+  const status = document.createElement("p");
+  status.setAttribute("role", "status");
+
+  async function decide(approved) {
+    if (approve.disabled) return;
+    approve.disabled = decline.disabled = true;
+    status.textContent = approved ? "Applying change…" : "Declining…";
+    try {
+      const response = await fetch("/api/google/tasks/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pending_id: pending.pending_id, approved })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        status.textContent = result.detail || "Could not confirm the decision.";
+        return;
+      }
+      status.textContent = result.status === "declined"
+        ? "Declined. No change was made."
+        : result.status === "completed"
+          ? "Google Task change completed."
+          : "Could not confirm the decision.";
+    } catch {
+      status.textContent = "Connection interrupted. Check the task list before retrying.";
+    }
+  }
+
+  approve.addEventListener("click", () => decide(true));
+  decline.addEventListener("click", () => decide(false));
+  card.append(approve, decline, status);
+  message.appendChild(card);
+}
+
 function renderMessageContent(message, text) {
   const markers = [
     { marker: "<!--CALENDAR_APPROVAL:", type: "calendar" },
+    { marker: "<!--TASK_APPROVAL:", type: "task" },
     { marker: "<!--GMAIL_APPROVAL:", type: "gmail" }
   ];
   const foundMarkers = markers
@@ -498,6 +588,11 @@ function renderMessageContent(message, text) {
     message.innerHTML = DOMPurify.sanitize(marked.parse(visibleText || ""));
   } else {
     message.textContent = visibleText;
+  }
+
+  if (proposalType === "task" && proposal) {
+    renderTaskApprovalCard(message, proposal);
+    return;
   }
 
   const pendingIds = proposalType === "calendar" && proposal
@@ -628,7 +723,10 @@ function renderMessageContent(message, text) {
       const lines = [];
 
       if (action === "create" || action === "update") {
-        const allDay = Boolean(event.start?.date || event.end?.date);
+        const allDay = Boolean(
+          event.start?.date && !event.start?.dateTime &&
+          event.end?.date && !event.end?.dateTime
+        );
         const startValue = event.start?.dateTime || event.start?.date || event.start_time;
         const endValue = event.end?.dateTime || event.end?.date || event.end_time;
         if (startValue) lines.push(`Start: ${formatDate(startValue, allDay)}`);
@@ -665,7 +763,10 @@ function renderMessageContent(message, text) {
       section.appendChild(details);
 
       if (action === "create" || action === "update") {
-        const allDay = Boolean(event.start?.date || event.end?.date);
+        const allDay = Boolean(
+          event.start?.date && !event.start?.dateTime &&
+          event.end?.date && !event.end?.dateTime
+        );
         function getDateAndTime(value, fallbackDate = "") {
           const local = toDateTimeLocal(value);
           if (local) {

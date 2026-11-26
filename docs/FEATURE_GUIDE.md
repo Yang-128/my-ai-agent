@@ -43,6 +43,17 @@ The chat router validates input, streams provider output, coordinates tools and 
 
 When adding a tool, verify its definition, implementation, dispatch path, user-facing description and approval requirements.
 
+## Debugging Google Calendar proposals
+
+| Symptom | Where to start | What to check |
+|---|---|---|
+| A calendar request produces a text reply without an approval card | `chat.py`, starting at `ai_decide_extensions` | Follow the selected tools into the chat route. Check that “put these events into my calendar” makes `mcp_create_calendar_events` available. |
+| A timetable fails with “Event end time must be later than its start time” | `school_timetable.py`, starting at `weekly_school_actions` | Inspect the local start and end times before `calendar_approval.py` validates them. A school slot of `1157-109` should become 11:57 AM–1:09 PM on the same day. |
+| The approval card is missing meetings | `calendar_approval.py` → `create_pending_calendar_actions` → `static/app.js` | Compare the pending proposals with the displayed titles, weekday groups, times, and recurrence rules. The timetable regression expects 11 series covering 18 meetings per week. |
+| Deleting a series removes only one occurrence | `mcp_server.py` and `google_integrations.py` for lookup, then `app.py` for approval | Trace the event ID from search to deletion. A whole-series deletion should target the recurring parent. Check a later occurrence after approval. |
+
+Run `./.venv/bin/python -m unittest discover -s tests -p 'test_school_timetable.py' -v` from the repository root. The tests check parsing and pending proposals using temporary storage. Verify browser rendering and live deletion separately.
+
 ## Approval modules
 
 - `calendar_approval.py`: pending Calendar action creation, retrieval, updates and discard.

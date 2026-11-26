@@ -21,3 +21,8 @@ src-tauri/target/
 src-tauri/gen/
 
 pending_gmail_messages.json
+
+/google_calendar_signin_*.json
+/google_calendar_signin_*.processing
+/google_calendar_token_*.json
+/pending_google_tasks.sqlite3*

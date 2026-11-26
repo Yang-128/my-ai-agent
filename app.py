@@ -22,7 +22,10 @@ from storage import (
 )
 from providers import PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
-from calendar_approval import get_pending_calendar_event, discard_pending_calendar_event, update_pending_calendar_event_times
+from calendar_approval import (
+    get_pending_calendar_event, discard_pending_calendar_event,
+    update_pending_calendar_event_times, calendar_event_is_all_day,
+)
 from gmail_approval import consume_pending_gmail_message, discard_pending_gmail_message, validate_attachments
 from google_integrations import (
     start_google_oauth,
@@ -103,6 +106,8 @@ def resolve_browser_path(relative_path: str = "") -> Path:
     if any(
         part.startswith(".")
         or part in FILE_BROWSER_EXCLUDED_DIRS
+        or part.startswith(("google_calendar_token", "google_calendar_signin_", "pending_google_tasks.sqlite3"))
+        or part == "google_oauth_state.json"
         or part.lower().endswith((".db", ".sqlite", ".sqlite3", ".pem", ".key", ".p12", ".pfx"))
         for part in parts
     ):
@@ -502,6 +507,27 @@ def google_calendar_connection_status():
     return google_calendar_status()
 
 
+def _calendar_signin_cookie(state):
+    from hashlib import sha256
+
+    return "calendar_signin_" + sha256(state.encode()).hexdigest()
+
+
+@app.get("/api/google/calendar/accounts/connect")
+def connect_additional_calendar_account():
+    from urllib.parse import parse_qs, urlsplit
+    from google_integrations import start_additional_calendar_oauth
+
+    url = start_additional_calendar_oauth()
+    state = parse_qs(urlsplit(url).query)["state"][0]
+    response = RedirectResponse(url, status_code=302)
+    response.set_cookie(
+        _calendar_signin_cookie(state), state, max_age=900,
+        path="/api/google/callback", httponly=True, samesite="lax",
+    )
+    return response
+
+
 @app.get("/api/google/connect")
 def google_calendar_connect():
     try:
@@ -519,10 +545,25 @@ def google_calendar_callback(request: Request):
         )
 
     try:
-        finish_google_oauth(
-            str(request.url),
-            request.query_params.get("state"),
-        )
+        from google_integrations import _calendar_signin_path, finish_additional_calendar_oauth
+
+        state = request.query_params.get("state")
+        if state and _calendar_signin_path(state).is_file():
+            cookie = _calendar_signin_cookie(state)
+            if request.cookies.get(cookie) != state:
+                return HTMLResponse(
+                    "<h2>Open Add Calendar Account again in this browser.</h2>",
+                    status_code=400,
+                )
+            finish_additional_calendar_oauth(str(request.url), state)
+            response = HTMLResponse(
+                "<h2>Additional calendar account connected</h2>"
+                "<p>You can close this tab and return to My AI Agent.</p>"
+            )
+            response.delete_cookie(cookie, path="/api/google/callback")
+            return response
+
+        finish_google_oauth(str(request.url), state)
         return HTMLResponse("""
             <html><body style="font-family:system-ui;max-width:600px;margin:80px auto">
             <h2>Google account connected</h2>
@@ -531,7 +572,7 @@ def google_calendar_callback(request: Request):
         """)
     except Exception as error:
         return HTMLResponse(
-            f"<h2>Google connection failed</h2><p>{str(error)}</p>",
+            "<h2>Google connection failed</h2><p>Start sign-in again and grant the requested permissions.</p>",
             status_code=400,
         )
 
@@ -640,11 +681,8 @@ def google_calendar_approve_event(body: dict):
 
             elif action == "update":
                 original_event = get_calendar_event(event_id)
-                original_start = original_event.get("start", {})
-                proposed_start = event_data.get("start", {})
-
-                original_is_all_day = "date" in original_start
-                proposed_is_all_day = "date" in proposed_start
+                original_is_all_day = calendar_event_is_all_day(original_event)
+                proposed_is_all_day = calendar_event_is_all_day({**original_event, **event_data})
                 is_type_conversion = original_is_all_day != proposed_is_all_day
 
                 if is_type_conversion:
@@ -652,13 +690,14 @@ def google_calendar_approve_event(body: dict):
                     # between all-day and timed events through PATCH.
                     # Create the replacement first so a failed insert never
                     # destroys the original event.
+                    replacement_fields = {**original_event, **event_data}
                     replacement = create_calendar_event(
-                        summary=event_data["summary"],
+                        summary=replacement_fields.get("summary", ""),
                         start=event_data.get("start"),
                         end=event_data.get("end"),
-                        recurrence=event_data.get("recurrence"),
-                        location=event_data.get("location", ""),
-                        description=event_data.get("description", ""),
+                        recurrence=replacement_fields.get("recurrence"),
+                        location=replacement_fields.get("location", ""),
+                        description=replacement_fields.get("description", ""),
                     )
 
                     try:
@@ -752,6 +791,46 @@ def google_gmail_available_attachments():
                 continue
     items.sort(key=lambda item: item["path"].lower())
     return {"items": items}
+
+
+@app.post("/api/google/tasks/approve")
+def google_tasks_approve(body: dict):
+    from google_integrations import execute_approved_google_task
+    from task_approval import UnavailableTaskProposal, consume_task_proposal
+
+    pending_id = body.get("pending_id")
+    approved = body.get("approved")
+    if (
+        set(body) != {"pending_id", "approved"}
+        or not isinstance(pending_id, str)
+        or not pending_id.strip()
+        or not isinstance(approved, bool)
+    ):
+        raise HTTPException(status_code=422, detail="Provide a pending ID and approval decision.")
+
+    try:
+        proposal = consume_task_proposal(pending_id)
+    except UnavailableTaskProposal as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+    if not approved:
+        return {"status": "declined"}
+
+    try:
+        execute_approved_google_task(
+            action=proposal["action"],
+            task_list_id=proposal["task_list_id"],
+            task_id=proposal.get("task_id"),
+            changes=proposal.get("changes"),
+        )
+    except (ValueError, RuntimeError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not confirm the Google Tasks change. Check the task list before retrying.",
+        ) from error
+    return {"status": "completed", "action": proposal["action"]}
 
 
 @app.post("/api/google/gmail/approve")

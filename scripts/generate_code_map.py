@@ -77,6 +77,8 @@ def file_purpose(name):
         "static/manifest.webmanifest": "Web app installation metadata and icons.",
         "static/service-worker.js": "Service worker route and cache lifecycle handling.",
         "static/style.css": "Frontend layout and visual styling.",
+        "school_timetable.py": "School timetable parsing and scheduling logic.",
+        "task_approval.py": "Google Tasks proposal and approval handling.",
         "storage.py": "SQLite persistence for conversations, messages, and usage.",
         "test_mcp.py": "MCP client/server smoke-test script.",
         "tools.py": "Built-in tool definitions, MCP discovery, and dispatch.",
@@ -98,6 +100,8 @@ def file_purpose(name):
         return "Tauri desktop application icon asset."
     if name.startswith("static/icon-"):
         return "Web app icon asset."
+    if name.startswith("tests/") and name.endswith(".py"):
+        return "Automated regression or integration test."
     raise ValueError(f"Missing file purpose: {name}")
 
 

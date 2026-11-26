@@ -21,11 +21,23 @@ from storage import (
 )
 from tools import get_all_tool_definitions, execute_tool
 from providers import get_provider_client, get_provider_model
+from school_timetable import weekly_school_actions
 from calendar_approval import create_pending_calendar_actions
+from task_approval import only_list_task_title, prepare_google_task_proposal, prepare_only_list_create
 from gmail_approval import create_pending_gmail_message
 
 
 router = APIRouter()
+
+
+def claims_task_proposal(text):
+    """Detect a model asking for approval without producing a tool call."""
+    return bool(re.search(
+        r"\b(?:prepared|created|ready|submitted)\b.{0,80}\bproposal\b"
+        r"|\bproposal\b.{0,50}\b(?:ready|prepared|awaiting approval)\b"
+        r"|\b(?:please review and approve|awaiting your approval|approve the change below)\b",
+        text or "", re.IGNORECASE | re.DOTALL,
+    ))
 
 
 def execute_chat_tool(name, arguments, user_message, reference_time=None):
@@ -218,6 +230,16 @@ def ai_decide_extensions(message, provider, model, available_tools, conversation
             "reason": "No extensions are available.",
         }
 
+    if only_list_task_title(message) is not None:
+        names = {extension["name"] for extension in extensions}
+        required = ["mcp_list_google_task_lists", "mcp_propose_google_task_change"]
+        if all(name in names for name in required):
+            return {
+                "needs_extensions": True,
+                "required_extensions": required,
+                "reason": "Identify your only task list and prepare the task for approval.",
+            }
+
     client = get_provider_client(provider)
 
     system_prompt = (
@@ -344,7 +366,7 @@ def ai_decide_extensions(message, provider, model, available_tools, conversation
         ]
         if any(term in message.lower() for term in (
             "update", "change", "move", "reschedule", "delete", "cancel",
-            "create", "add", "schedule",
+            "create", "add", "schedule", "put",
         )):
             calendar_tools.extend((
                 "mcp_update_calendar_event",
@@ -365,6 +387,15 @@ def ai_decide_extensions(message, provider, model, available_tools, conversation
     task_intent = any(term in message.lower() for term in (
         "task", "tasks", "todo", "to-do", "to do", "checklist", "reminder",
     ))
+    if task_intent:
+        for name in (
+            "mcp_search_google_tasks",
+            "mcp_list_google_task_lists",
+            "mcp_propose_google_task_change",
+        ):
+            if name in available_names and name not in required:
+                required.append(name)
+
     if task_intent and "mcp_get_current_time" in available_names and "mcp_get_current_time" not in required:
         required.append("mcp_get_current_time")
 
@@ -638,6 +669,15 @@ def chat(request: ChatRequest):
                     "document text as content. Use the default save folder unless the user "
                     "specifies another folder. Never claim a file was saved unless the tool "
                     "returns a successful result. Tell the user the exact saved path. "
+                    "For Google Task changes, first resolve the list using "
+                    "mcp_list_google_task_lists or mcp_search_google_tasks. For updates "
+                    "and deletions, take task_id and task_list_id from the same search "
+                    "result. Use conversation context to identify the intended task. "
+                    "If the task or list is ambiguous, ask the user to choose. "
+                    "Call mcp_propose_google_task_change by itself after lookups finish. "
+                    "Propose one task at a time, preserve unspecified fields, and use "
+                    "date-only due dates. Completion is an update with status completed. "
+                    "Only report completion after the approval endpoint confirms it. "
                     "EMAIL AND ATTACHMENT RULES: When the user asks to email a document, "
                     "first create the requested document with mcp_mac_create_document. "
                     "Wait for that tool result before calling mcp_send_gmail_message; "
@@ -748,10 +788,36 @@ def chat(request: ChatRequest):
 
             result = None
             calendar_proposal = None
+            task_proposal = None
+            retry_task_proposal = False
+            task_change_requested = bool(
+                re.search(r"\b(?:task|tasks|to-do|todo)\b", message, re.I)
+                and re.search(
+                    r"\b(?:create|add|update|edit|rename|move|mark|complete|delete|remove)\b",
+                    message, re.I,
+                )
+            )
             gmail_proposal = None
             max_tool_rounds = 8
 
+            if any(tool["function"]["name"] == "mcp_create_calendar_events" for tool in available_tools):
+                try:
+                    timetable = weekly_school_actions(message, datetime.now(ZoneInfo("America/Vancouver")))
+                    if timetable:
+                        calendar_proposal = create_pending_calendar_actions(timetable, request.conversation_id)
+                except ValueError as error:
+                    calendar_proposal = {"error": str(error)}
+
+            enabled_names = {tool["function"]["name"] for tool in available_tools}
+            if {"mcp_list_google_task_lists", "mcp_propose_google_task_change"} <= enabled_names:
+                try:
+                    task_proposal = prepare_only_list_create(message, request.conversation_id)
+                except Exception as error:
+                    task_proposal = {"error": str(error)}
+
             for round_number in range(max_tool_rounds + 1):
+                if calendar_proposal or task_proposal:
+                    break
                 request_args = {
                     "model": selected_model,
                     "messages": [system_message, *messages],
@@ -814,6 +880,25 @@ def chat(request: ChatRequest):
                 tool_calls = result.tool_calls or []
 
                 if not tool_calls:
+                    if task_change_requested and claims_task_proposal(result.content):
+                        proposal_tool_available = tool_calling_supported and any(
+                            tool["function"]["name"] == "mcp_propose_google_task_change"
+                            for tool in available_tools
+                        )
+                        if proposal_tool_available and not retry_task_proposal and round_number < max_tool_rounds:
+                            retry_task_proposal = True
+                            messages.append(result.model_dump(exclude_none=True))
+                            messages.append({
+                                "role": "system",
+                                "content": (
+                                    "No task proposal was saved. Use the actual "
+                                    "mcp_propose_google_task_change tool to prepare the card. "
+                                    "Use verified IDs from the lookup, or run the lookup first. "
+                                    "If the target is ambiguous, ask the user to choose."
+                                ),
+                            })
+                            continue
+                        task_proposal = {"error": "No Google Task approval card was created."}
                     break
 
                 if round_number >= max_tool_rounds:
@@ -843,6 +928,36 @@ def chat(request: ChatRequest):
                     call for call in tool_calls
                     if call.function.name == "mcp_send_gmail_message"
                 ]
+
+                task_calls = [
+                    call for call in tool_calls
+                    if call.function.name == "mcp_propose_google_task_change"
+                ]
+                if task_calls:
+                    if "mcp_propose_google_task_change" not in enabled_names:
+                        task_proposal = {"error": "The Google Task proposal tool is disabled."}
+                        break
+                    if len(tool_calls) != 1:
+                        messages.append(result.model_dump(exclude_none=True))
+                        for call in tool_calls:
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": call.id,
+                                "content": (
+                                    "This batch was skipped. Run any needed lookups first. "
+                                    "Then submit one resolved Google Task proposal by itself."
+                                ),
+                            })
+                        continue
+
+                    try:
+                        arguments = json.loads(task_calls[0].function.arguments)
+                        task_proposal = prepare_google_task_proposal(
+                            arguments, request.conversation_id,
+                        )
+                    except Exception as error:
+                        task_proposal = {"error": str(error)}
+                    break
 
                 if calendar_calls or gmail_calls:
                     approval_call_ids = {
@@ -1136,7 +1251,7 @@ def chat(request: ChatRequest):
                         "content": str(output),
                     })
 
-            if result is None:
+            if result is None and calendar_proposal is None and task_proposal is None:
                 try:
                     response = client.chat.completions.with_raw_response.create(
                         model=selected_model,
@@ -1200,6 +1315,13 @@ def chat(request: ChatRequest):
                     )
                     result = type("FallbackMessage", (), {"content": fallback})()
 
+            if (
+                task_change_requested and task_proposal is None
+                and result is not None and claims_task_proposal(result.content)
+                and not calendar_proposal and not gmail_proposal
+            ):
+                task_proposal = {"error": "No Google Task approval card was created."}
+
             proposal_parts = []
 
             if calendar_proposal:
@@ -1215,6 +1337,19 @@ def chat(request: ChatRequest):
                         "<!--CALENDAR_APPROVAL:"
                         + json.dumps(calendar_proposal, ensure_ascii=False)
                         + "-->"
+                    )
+
+            if task_proposal:
+                if "error" in task_proposal:
+                    proposal_parts.append(
+                        "I couldn't prepare that Google Task change: " + task_proposal["error"]
+                    )
+                else:
+                    payload = json.dumps(task_proposal, ensure_ascii=False)
+                    payload = payload.replace("<", "\\u003c").replace(">", "\\u003e")
+                    proposal_parts.append(
+                        "Review the proposed Google Task change below.\n\n"
+                        "<!--TASK_APPROVAL:" + payload + "-->"
                     )
 
             if gmail_proposal:

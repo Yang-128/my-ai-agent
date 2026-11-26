@@ -15,9 +15,10 @@ from runtime import DATA_DIR, ENV_FILE
 load_dotenv(ENV_FILE, override=True)
 
 REDIRECT_URI = "http://localhost:8000/api/google/callback"
+TASKS_WRITE_SCOPE = "https://www.googleapis.com/auth/tasks"
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
-    "https://www.googleapis.com/auth/tasks.readonly",
+    TASKS_WRITE_SCOPE,
     "https://www.googleapis.com/auth/gmail.send",
 ]
 
@@ -41,6 +42,83 @@ def _client_config():
             "redirect_uris": [REDIRECT_URI],
         }
     }
+
+
+CALENDAR_ACCOUNT_SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
+
+
+def _calendar_signin_path(state):
+    import hashlib
+
+    if not isinstance(state, str) or not state or len(state) > 512:
+        raise ValueError("Invalid calendar sign-in state.")
+    digest = hashlib.sha256(state.encode()).hexdigest()
+    return DATA_DIR / f"google_calendar_signin_{digest}.json"
+
+
+def _write_private_json_file(path, text):
+    """Create a private file exclusively, without replacing an existing account."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(text)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
+def start_additional_calendar_oauth():
+    import time
+    import uuid
+
+    flow = Flow.from_client_config(
+        _client_config(), scopes=CALENDAR_ACCOUNT_SCOPES, redirect_uri=REDIRECT_URI
+    )
+    url, state = flow.authorization_url(
+        access_type="offline", prompt="select_account consent"
+    )
+    _write_private_json_file(_calendar_signin_path(state), json.dumps({
+        "account_id": uuid.uuid4().hex,
+        "code_verifier": flow.code_verifier,
+        "expires_at": time.time() + 900,
+    }))
+    return url
+
+
+def finish_additional_calendar_oauth(authorization_response, state):
+    import time
+
+    path = _calendar_signin_path(state)
+    claimed = path.with_suffix(".processing")
+    try:
+        path.rename(claimed)
+    except FileNotFoundError:
+        raise ValueError("Calendar sign-in expired or was already handled. Start again.") from None
+
+    try:
+        session = json.loads(claimed.read_text(encoding="utf-8"))
+        if time.time() >= session["expires_at"]:
+            raise ValueError("Calendar sign-in expired. Start again.")
+        account_id = session["account_id"]
+        if account_id == "default":
+            raise ValueError("Invalid additional calendar account.")
+        destination = calendar_token_path(account_id)
+        flow = Flow.from_client_config(
+            _client_config(), scopes=CALENDAR_ACCOUNT_SCOPES,
+            redirect_uri=REDIRECT_URI, state=state,
+        )
+        flow.code_verifier = session["code_verifier"]
+        flow.fetch_token(authorization_response=authorization_response)
+        credentials = flow.credentials
+        if not credentials.refresh_token:
+            raise ValueError("Google did not grant offline access. Start calendar sign-in again.")
+        granted = credentials.granted_scopes
+        if granted is not None and not set(CALENDAR_ACCOUNT_SCOPES).issubset(granted):
+            raise ValueError("Google Calendar permission was not granted.")
+        _write_private_json_file(destination, credentials.to_json())
+        return account_id
+    finally:
+        claimed.unlink(missing_ok=True)
 
 
 def start_google_oauth():
@@ -79,6 +157,9 @@ def finish_google_oauth(authorization_response, state):
     flow.code_verifier = oauth_state.get("code_verifier")
     flow.fetch_token(authorization_response=authorization_response)
     credentials = flow.credentials
+    if credentials.granted_scopes is not None:
+        if TASKS_WRITE_SCOPE not in credentials.granted_scopes:
+            raise RuntimeError("Reconnect Google and grant permission to manage Google Tasks.")
 
     # Google may omit a new refresh token when the account has authorized
     # this application before. Preserve the existing token for the same user.
@@ -103,19 +184,34 @@ def finish_google_oauth(authorization_response, state):
     STATE_FILE.unlink(missing_ok=True)
 
 
-def get_google_credentials():
-    if not TOKEN_FILE.exists():
+def calendar_token_path(account_id="default"):
+    """Keep the original connection in place and isolate additional accounts."""
+    from uuid import UUID
+
+    if account_id == "default":
+        return TOKEN_FILE
+    try:
+        key = UUID(hex=account_id)
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("Invalid calendar account ID.") from None
+    if key.hex != account_id:
+        raise ValueError("Invalid calendar account ID.")
+    return DATA_DIR / f"google_calendar_token_{key.hex}.json"
+
+
+def get_google_credentials(*, require_tasks_write=False, account_id="default"):
+    token_file = calendar_token_path(account_id)
+    if not token_file.exists():
         raise RuntimeError("Google Calendar is not connected.")
 
-    credentials = Credentials.from_authorized_user_file(
-        str(TOKEN_FILE),
-        scopes=SCOPES,
-    )
+    credentials = Credentials.from_authorized_user_file(str(token_file))
+    if require_tasks_write and not credentials.has_scopes([TASKS_WRITE_SCOPE]):
+        raise RuntimeError("Reconnect Google and grant permission to manage Google Tasks.")
 
     if credentials.expired and credentials.refresh_token:
         credentials.refresh(Request())
-        TOKEN_FILE.write_text(credentials.to_json())
-        os.chmod(TOKEN_FILE, 0o600)
+        token_file.write_text(credentials.to_json())
+        os.chmod(token_file, 0o600)
 
     if not credentials.valid:
         raise RuntimeError("Google authorization expired. Reconnect Google Calendar.")
@@ -218,8 +314,63 @@ def get_tasks_service():
     )
 
 
-def list_google_tasks(query="", show_completed=True, max_results=100):
-    service = get_tasks_service()
+def validate_google_task_change(action, task_list_id, task_id=None, changes=None):
+    """Validate the change and return its Google API request body."""
+    from datetime import date
+
+    if action not in ("create", "update", "delete"):
+        raise ValueError("Unsupported Google Task action.")
+    if not isinstance(task_list_id, str) or not task_list_id.strip():
+        raise ValueError("A Google task list ID is required.")
+    if action == "create":
+        if task_id is not None:
+            raise ValueError("A new task cannot have an existing task ID.")
+    elif not isinstance(task_id, str) or not task_id.strip():
+        raise ValueError("An existing Google task ID is required.")
+
+    if changes is None:
+        changes = {}
+    if not isinstance(changes, dict):
+        raise ValueError("Task changes must be an object.")
+    body = changes.copy()
+    if body.keys() - {"title", "notes", "due", "status"}:
+        raise ValueError("Unsupported Google Task field.")
+    if action == "create" or "title" in body:
+        if not isinstance(body.get("title"), str) or not body["title"].strip():
+            raise ValueError("A task title is required.")
+    if "notes" in body and not isinstance(body["notes"], str):
+        raise ValueError("Task notes must be text.")
+    if "status" in body and body["status"] not in ("needsAction", "completed"):
+        raise ValueError("Invalid task completion status.")
+    if "due" in body and body["due"] is not None:
+        due = body["due"]
+        try:
+            day = date.fromisoformat(due)
+        except (ValueError, TypeError):
+            raise ValueError("Use YYYY-MM-DD for a task due date.") from None
+        if day.isoformat() != due:
+            raise ValueError("Use YYYY-MM-DD for a task due date.")
+        body["due"] = due + "T00:00:00Z"
+    if action == "update" and not body:
+        raise ValueError("Select at least one task field to update.")
+    if action == "delete" and body:
+        raise ValueError("A task deletion cannot include field changes.")
+
+    return body
+
+
+def execute_approved_google_task(action, task_list_id, task_id=None, changes=None):
+    body = validate_google_task_change(action, task_list_id, task_id, changes)
+    credentials = get_google_credentials(require_tasks_write=True)
+    tasks = build("tasks", "v1", credentials=credentials).tasks()
+    if action == "create":
+        return tasks.insert(tasklist=task_list_id, body=body).execute()
+    if action == "update":
+        return tasks.patch(tasklist=task_list_id, task=task_id, body=body).execute()
+    return tasks.delete(tasklist=task_list_id, task=task_id).execute()
+
+
+def list_google_task_lists(service):
     task_lists = []
     page_token = None
     while True:
@@ -231,15 +382,21 @@ def list_google_tasks(query="", show_completed=True, max_results=100):
         if not page_token:
             break
 
+    return task_lists
+
+
+def list_google_tasks(query="", show_completed=True, max_results=100):
+    service = get_tasks_service()
+    task_lists = list_google_task_lists(service)
     results = []
     needle = str(query or "").strip().casefold()
-    remaining = max(1, min(int(max_results), 500))
+    limit = max(1, min(int(max_results), 500))
     for task_list in task_lists:
         page_token = None
-        while remaining > 0:
+        while True:
             response = service.tasks().list(
                 tasklist=task_list["id"],
-                maxResults=min(100, remaining),
+                maxResults=100,
                 showCompleted=bool(show_completed),
                 showHidden=True,
                 pageToken=page_token,
@@ -261,11 +418,10 @@ def list_google_tasks(query="", show_completed=True, max_results=100):
                     "task_list_title": task_list.get("title"),
                     "kind": "google_task",
                 })
-                if len(results) >= max_results:
+                if len(results) >= limit:
                     return results
-            remaining -= len(response.get("items", []))
             page_token = response.get("nextPageToken")
-            if not page_token or not response.get("items"):
+            if not page_token:
                 break
     return results
 

@@ -12,6 +12,27 @@ _LOCK = threading.Lock()
 _EXPIRY = timedelta(minutes=30)
 
 
+def calendar_event_is_all_day(event):
+    """Return the event type, rejecting incomplete or mixed start/end values."""
+    if not isinstance(event, dict):
+        raise ValueError("Calendar event has invalid start/end data.")
+
+    def endpoint_type(endpoint):
+        if not isinstance(endpoint, dict):
+            return None
+        has_date = isinstance(endpoint.get("date"), str) and bool(endpoint["date"].strip())
+        has_datetime = isinstance(endpoint.get("dateTime"), str) and bool(endpoint["dateTime"].strip())
+        if has_date == has_datetime:
+            return None
+        return "date" if has_date else "dateTime"
+
+    start_type = endpoint_type(event.get("start"))
+    end_type = endpoint_type(event.get("end"))
+    if start_type is None or end_type is None or start_type != end_type:
+        raise ValueError("Calendar event must have matching all-day dates or timed start and end values.")
+    return start_type == "date"
+
+
 def _normalize_all_day_date(value, field_name):
     """Accept common human-readable dates and normalize them to YYYY-MM-DD."""
     raw = str(value or "").strip()

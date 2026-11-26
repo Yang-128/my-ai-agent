@@ -260,18 +260,18 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 68 | function | `get_gemini_limits` |
 | 73 | function | `get_default_gemini_rpd` |
 | 78 | function | `init_db` |
-| 156 | function | `create_conversation` |
-| 171 | function | `list_conversations` |
-| 181 | function | `get_conversation` |
-| 209 | function | `save_message` |
-| 245 | function | `parse_reset_seconds` |
-| 265 | function | `record_usage` |
-| 328 | function | `record_provider_request` |
-| 391 | function | `get_daily_usage` |
-| 623 | function | `record_turn_usage` |
-| 640 | function | `get_turn_usage` |
-| 689 | function | `get_tool_settings` |
-| 698 | function | `set_tool_enabled` |
+| 181 | function | `create_conversation` |
+| 196 | function | `list_conversations` |
+| 206 | function | `get_conversation` |
+| 234 | function | `save_message` |
+| 270 | function | `parse_reset_seconds` |
+| 290 | function | `record_usage` |
+| 353 | function | `record_provider_request` |
+| 416 | function | `get_daily_usage` |
+| 648 | function | `record_turn_usage` |
+| 665 | function | `get_turn_usage` |
+| 714 | function | `get_tool_settings` |
+| 723 | function | `set_tool_enabled` |
 
 ### `task_approval.py`
 
@@ -335,7 +335,8 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 9 | class | `ConversationTests` |
 | 10 | function | `ConversationTests.setUp` |
 | 18 | function | `ConversationTests.test_saved_conversation_retains_title_and_message_order` |
-| 32 | function | `ConversationTests.test_unknown_conversation` |
+| 32 | function | `ConversationTests.test_full_titles_and_legacy_title_recovery` |
+| 49 | function | `ConversationTests.test_unknown_conversation` |
 
 ### `tools.py`
 
@@ -403,23 +404,23 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 1487 | function | `openConversation` |
 | 1522 | function | `newChat` |
 | 1546 | function | `sendMessage` |
-| 1796 | function | `useSuggestion` |
-| 1800 | function | `initialize` |
-| 1832 | function | `showUsage` |
-| 1847 | function | `showChat` |
-| 1862 | function | `updateResetCountdowns` |
-| 1906 | function | `refreshUsage` |
-| 1976 | function | `isDailyLimitReached` |
-| 1989 | function | `hasKnownDailyLimit` |
-| 2097 | function | `quotaText` |
-| 2241 | function | `refreshTools` |
-| 2463 | function | `showTools` |
-| 2483 | function | `loadFiles` |
-| 2542 | function | `formatFileSize` |
-| 2549 | function | `previewFile` |
-| 2587 | function | `showFiles` |
-| 2618 | function | `refreshGoogleCalendarStatus` |
-| 2641 | function | `refreshGoogleGmailStatus` |
+| 1797 | function | `useSuggestion` |
+| 1801 | function | `initialize` |
+| 1833 | function | `showUsage` |
+| 1848 | function | `showChat` |
+| 1863 | function | `updateResetCountdowns` |
+| 1907 | function | `refreshUsage` |
+| 1977 | function | `isDailyLimitReached` |
+| 1990 | function | `hasKnownDailyLimit` |
+| 2098 | function | `quotaText` |
+| 2242 | function | `refreshTools` |
+| 2464 | function | `showTools` |
+| 2484 | function | `loadFiles` |
+| 2543 | function | `formatFileSize` |
+| 2550 | function | `previewFile` |
+| 2588 | function | `showFiles` |
+| 2619 | function | `refreshGoogleCalendarStatus` |
+| 2642 | function | `refreshGoogleGmailStatus` |
 
 ### `static/service-worker.js`
 

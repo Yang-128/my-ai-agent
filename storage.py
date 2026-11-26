@@ -143,6 +143,7 @@ def init_db():
             );
         """)
 
+        db.execute("BEGIN IMMEDIATE")
         columns = {
             row["name"]
             for row in db.execute("PRAGMA table_info(messages)").fetchall()
@@ -151,6 +152,30 @@ def init_db():
             db.execute(
                 "ALTER TABLE messages ADD COLUMN images TEXT NOT NULL DEFAULT '[]'"
             )
+
+        if db.execute("PRAGMA user_version").fetchone()[0] == 0:
+            # Reconstruct only titles that match the old automatic 45-character prefix.
+            candidates = {
+                row["id"]: row["title"] for row in db.execute(
+                    "SELECT id, title FROM conversations WHERE length(title) = 45"
+                )
+            }
+            if candidates:
+                for row in db.execute(
+                    """SELECT m.conversation_id, m.content FROM messages AS m
+                       JOIN conversations AS c ON c.id = m.conversation_id
+                       WHERE m.role = 'user' AND length(c.title) = 45 ORDER BY m.id"""
+                ):
+                    cid = row["conversation_id"]
+                    if cid not in candidates:
+                        continue
+                    title = row["content"].strip().replace("\n", " ")
+                    if not title or title == "New conversation":
+                        continue
+                    old_title = candidates.pop(cid)
+                    if len(title) > 45 and title[:45] == old_title:
+                        db.execute("UPDATE conversations SET title = ? WHERE id = ?", (title, cid))
+            db.execute("PRAGMA user_version = 1")
 
 
 def create_conversation():
@@ -230,7 +255,7 @@ def save_message(conversation_id, role, content, images=None):
             ).fetchone()
 
             if conversation and conversation["title"] == "New conversation":
-                title = content.strip().replace("\n", " ")[:45]
+                title = content.strip().replace("\n", " ")
                 db.execute(
                     "UPDATE conversations SET title = ? WHERE id = ?",
                     (title or "New conversation", conversation_id)

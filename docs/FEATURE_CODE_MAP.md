@@ -26,17 +26,17 @@
 
 ### Frontend behavior — `static/app.js`
 
-- **L1832** Page navigation: `async function showUsage() {`
-- **L1847** Return navigation: `function showChat() {`
-- **L1862** Reset countdown renderer: `function updateResetCountdowns() {`
-- **L1906** Usage data loading and rendering: `async function refreshUsage() {`
-- **L1915** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
-- **L1924** Usage API request: `const response = await fetch("/api/usage");`
-- **L1976** Daily quota status: `function isDailyLimitReached(item) {`
-- **L1989** Quota availability check: `function hasKnownDailyLimit(item) {`
-- **L2097** Quota formatting: `function quotaText(used, limit) {`
-- **L2212** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
-- **L2236** Refresh event: `.addEventListener("click", refreshUsage);`
+- **L1833** Page navigation: `async function showUsage() {`
+- **L1848** Return navigation: `function showChat() {`
+- **L1863** Reset countdown renderer: `function updateResetCountdowns() {`
+- **L1907** Usage data loading and rendering: `async function refreshUsage() {`
+- **L1916** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
+- **L1925** Usage API request: `const response = await fetch("/api/usage");`
+- **L1977** Daily quota status: `function isDailyLimitReached(item) {`
+- **L1990** Quota availability check: `function hasKnownDailyLimit(item) {`
+- **L2098** Quota formatting: `function quotaText(used, limit) {`
+- **L2213** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
+- **L2237** Refresh event: `.addEventListener("click", refreshUsage);`
 
 ### Backend API and refresh — `app.py`
 
@@ -62,51 +62,51 @@
 - **L134** Rolling usage event table/query: `ON usage_events(created_at);`
 - **L136** Rolling usage event table/query: `CREATE INDEX IF NOT EXISTS idx_usage_events_provider_model`
 - **L137** Rolling usage event table/query: `ON usage_events(provider, model, created_at);`
-- **L265** Daily quota persistence: `def record_usage(`
-- **L287** Daily quota table/query: `INSERT INTO usage_daily (`
-- **L299** Daily quota table/query: `usage_daily.requests_limit`
-- **L303** Daily quota table/query: `usage_daily.requests_remaining`
-- **L307** Daily quota table/query: `usage_daily.requests_reset`
-- **L311** Daily quota table/query: `usage_daily.tokens_limit`
-- **L313** Daily quota table/query: `tokens_used = usage_daily.tokens_used + excluded.tokens_used,`
-- **L317** Daily quota table/query: `usage_daily.next_replenishment_at`
-- **L328** Rolling request event persistence: `def record_provider_request(`
-- **L342** Rolling usage event table/query: `INSERT INTO usage_events (`
-- **L362** Daily quota table/query: `FROM usage_daily`
-- **L372** Daily quota table/query: `INSERT INTO usage_daily (`
-- **L391** Daily and rolling usage aggregation: `def get_daily_usage():`
-- **L416** Daily quota table/query: `FROM usage_daily AS u`
-- **L434** Rolling usage event table/query: `FROM usage_events`
-- **L441** Rolling usage event table/query: `FROM usage_events`
-- **L453** Rolling usage event table/query: `FROM usage_events`
-- **L623** Turn usage persistence: `def record_turn_usage(provider, model, input_tokens, output_tokens):`
-- **L629** Turn statistics table/query: `INSERT INTO usage_turns (`
-- **L640** Turn statistics aggregation: `def get_turn_usage():`
-- **L661** Rolling usage event table/query: `FROM usage_events`
-- **L676** Turn statistics table/query: `FROM usage_turns AS t`
+- **L290** Daily quota persistence: `def record_usage(`
+- **L312** Daily quota table/query: `INSERT INTO usage_daily (`
+- **L324** Daily quota table/query: `usage_daily.requests_limit`
+- **L328** Daily quota table/query: `usage_daily.requests_remaining`
+- **L332** Daily quota table/query: `usage_daily.requests_reset`
+- **L336** Daily quota table/query: `usage_daily.tokens_limit`
+- **L338** Daily quota table/query: `tokens_used = usage_daily.tokens_used + excluded.tokens_used,`
+- **L342** Daily quota table/query: `usage_daily.next_replenishment_at`
+- **L353** Rolling request event persistence: `def record_provider_request(`
+- **L367** Rolling usage event table/query: `INSERT INTO usage_events (`
+- **L387** Daily quota table/query: `FROM usage_daily`
+- **L397** Daily quota table/query: `INSERT INTO usage_daily (`
+- **L416** Daily and rolling usage aggregation: `def get_daily_usage():`
+- **L441** Daily quota table/query: `FROM usage_daily AS u`
+- **L459** Rolling usage event table/query: `FROM usage_events`
+- **L466** Rolling usage event table/query: `FROM usage_events`
+- **L478** Rolling usage event table/query: `FROM usage_events`
+- **L648** Turn usage persistence: `def record_turn_usage(provider, model, input_tokens, output_tokens):`
+- **L654** Turn statistics table/query: `INSERT INTO usage_turns (`
+- **L665** Turn statistics aggregation: `def get_turn_usage():`
+- **L686** Rolling usage event table/query: `FROM usage_events`
+- **L701** Turn statistics table/query: `FROM usage_turns AS t`
 
 ### Usage styling — `static/style.css`
 
-- **L417** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L600** Page layout: `.usage-page {`
-- **L608** Page heading: `.usage-heading h1 {`
-- **L613** Page heading: `.usage-heading p,`
-- **L619** Summary grid: `.usage-summary {`
-- **L626** Summary cards: `.usage-card {`
-- **L633** Summary cards: `.usage-card span {`
-- **L638** Summary cards: `.usage-card strong {`
-- **L644** Section layout: `.usage-section h2 {`
-- **L792** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L821** Provider grid: `.provider-status-grid {`
-- **L828** Provider cards: `.provider-status-card {`
-- **L838** Provider cards: `.provider-status-card:hover {`
-- **L878** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L1046** Responsive breakpoint: `@media (max-width: 900px) {`
-- **L1052** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L1415** Responsive breakpoint: `@media (max-width: 760px) {`
-- **L1529** Responsive breakpoint: `@media (max-width: 600px) {`
-- **L1674** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L1915** Responsive breakpoint: `@media (max-width: 380px) {`
+- **L426** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L609** Page layout: `.usage-page {`
+- **L617** Page heading: `.usage-heading h1 {`
+- **L622** Page heading: `.usage-heading p,`
+- **L628** Summary grid: `.usage-summary {`
+- **L635** Summary cards: `.usage-card {`
+- **L642** Summary cards: `.usage-card span {`
+- **L647** Summary cards: `.usage-card strong {`
+- **L653** Section layout: `.usage-section h2 {`
+- **L801** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L830** Provider grid: `.provider-status-grid {`
+- **L837** Provider cards: `.provider-status-card {`
+- **L847** Provider cards: `.provider-status-card:hover {`
+- **L887** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L1055** Responsive breakpoint: `@media (max-width: 900px) {`
+- **L1061** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L1424** Responsive breakpoint: `@media (max-width: 760px) {`
+- **L1538** Responsive breakpoint: `@media (max-width: 600px) {`
+- **L1683** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L1924** Responsive breakpoint: `@media (max-width: 380px) {`
 
 ## Current redesign targets
 

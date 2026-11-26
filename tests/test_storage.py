@@ -29,5 +29,22 @@ class ConversationTests(unittest.TestCase):
         )
         self.assertEqual([c["id"] for c in storage.list_conversations()], [conversation])
 
+    def test_full_titles_and_legacy_title_recovery(self):
+        text = "A long opening question " * 8 + "\n最後の質問"
+        title = text.replace("\n", " ")
+        legacy = storage.create_conversation()
+        custom = storage.create_conversation()
+        for cid in (legacy, custom):
+            storage.save_message(cid, "user", text)
+            self.assertEqual(storage.get_conversation(cid)["title"], title)
+        with storage.connect() as db:
+            db.execute("UPDATE conversations SET title = ? WHERE id = ?", (title[:45], legacy))
+            db.execute("UPDATE conversations SET title = ? WHERE id = ?", ("x" * 45, custom))
+            db.execute("PRAGMA user_version = 0")
+        storage.init_db()
+        storage.init_db()
+        self.assertEqual(storage.get_conversation(legacy)["title"], title)
+        self.assertEqual(storage.get_conversation(custom)["title"], "x" * 45)
+
     def test_unknown_conversation(self):
         self.assertIsNone(storage.get_conversation("missing"))

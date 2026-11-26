@@ -203,31 +203,6 @@ def discover_free_models(provider="openrouter"):
     return rank_models(models, provider)
 
 
-def discover_providers():
-    from urllib.parse import urlsplit
-
-    offers = [{"id": key, "name": config["name"], "supported": True, "url": FREE_TIER_PAGES[key]}
-              for key, config in PROVIDERS.items()]
-    catalog = public_catalog("https://models.dev/api.json").json()
-    for key, provider in catalog.items():
-        if key in {*PROVIDERS, "google"}:
-            continue
-        url = provider.get("doc") or ""
-        if urlsplit(url).scheme != "https" or not urlsplit(url).hostname:
-            continue
-        for model in provider.get("models", {}).values():
-            cost = model.get("cost") or {}
-            modalities = model.get("modalities") or {}
-            if (re.search(r"(?:^|[-:/ ])free(?:$|[-:/ )])", model.get("id", "").lower())
-                    and cost.get("input") == cost.get("output") == 0
-                    and "text" in modalities.get("input", []) and "text" in modalities.get("output", [])
-                    and model.get("status") != "deprecated"):
-                offers.append({"id": key, "name": provider["name"], "supported": False,
-                               "url": url, "example": model["id"]})
-                break
-    return offers
-
-
 def get_available_models(provider_name, *, strict=False):
     if provider_name not in PROVIDERS:
         raise ValueError("Unsupported provider")

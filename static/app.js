@@ -401,14 +401,28 @@ async function findProviders() {
     if (!response.ok) throw new Error("Provider search failed. Try again.");
     const {providers} = await response.json();
     list.replaceChildren();
+    let position = 0;
+    let unknownHeading = false;
     for (const offer of providers) {
-      const row = document.createElement("p");
+      if (!offer.comparable && !unknownHeading) {
+        const heading = document.createElement("h3");
+        heading.textContent = "Daily cap unverified · sorted by model capabilities";
+        list.append(heading);
+        unknownHeading = true;
+      }
+      const row = document.createElement("article");
+      const title = document.createElement("strong");
+      title.textContent = (offer.comparable ? (++position) + ". " : "") + offer.name;
+      const strengths = document.createElement("p");
+      strengths.textContent = offer.example ? offer.example + " · Good for " + offer.strengths + "." : offer.strengths;
+      const limits = document.createElement("p");
+      limits.textContent = offer.limits;
       const link = document.createElement("a");
-      link.href = offer.url;
+      link.href = offer.limit_url || offer.url;
       link.target = "_blank";
       link.rel = "noreferrer";
-      link.textContent = offer.name + " · provider details";
-      row.append(link);
+      link.textContent = "Provider limits";
+      row.append(title, strengths, limits, link);
       if (offer.supported) {
         const use = document.createElement("button");
         use.className = "refresh-usage";
@@ -422,7 +436,7 @@ async function findProviders() {
         };
         row.append(" ", use);
       } else {
-        row.append(" · Listed free model: " + offer.example + " · External provider");
+        row.append(" · External provider");
       }
       list.append(row);
     }

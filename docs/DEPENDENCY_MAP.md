@@ -14,6 +14,7 @@
 - `chat`
 - `gmail_approval`
 - `google_integrations`
+- `provider_ranking`
 - `providers`
 - `runtime`
 - `storage`
@@ -57,6 +58,11 @@
 - `storage`
 - `web_search`
 
+### `provider_ranking.py`
+
+- `providers`
+- `storage`
+
 ### `providers.py`
 
 - `runtime`
@@ -97,6 +103,7 @@
 ### `tests/test_capabilities.py`
 
 - `app`
+- `provider_ranking`
 - `providers`
 - `storage`
 

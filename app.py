@@ -20,7 +20,8 @@ from storage import (
     get_tool_settings,
     set_tool_enabled, set_tools_enabled
 )
-from providers import FREE_TIER_PAGES, discover_providers, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
+from provider_ranking import ranked_providers
+from providers import FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
 from calendar_approval import (
     get_pending_calendar_event, discard_pending_calendar_event,
@@ -340,7 +341,7 @@ def check_free_models(provider: str = "openrouter"):
 @app.get("/api/free-providers")
 def check_free_providers():
     try:
-        return {"providers": discover_providers()}
+        return {"providers": ranked_providers()}
     except (httpx.HTTPError, ValueError, TypeError, KeyError) as error:
         raise HTTPException(502, "The public provider directory is unavailable. Try again.") from error
 

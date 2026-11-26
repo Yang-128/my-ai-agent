@@ -59,6 +59,7 @@ def file_purpose(name):
         "mcp_server.py": "MCP server and local integration tool definitions.",
         "package-lock.json": "Locked Node dependency tree.",
         "package.json": "Node package metadata and Tauri CLI dependency.",
+        "provider_ranking.py": "Ranks free providers by model capabilities and daily usage limits.",
         "providers.py": "Provider configuration, model selection, and API clients.",
         "requirements.txt": "Python runtime dependencies.",
         "runtime.py": "Runtime resource and application data path resolution.",

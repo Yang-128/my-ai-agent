@@ -68,6 +68,8 @@ There is no automatic image-to-text fallback. The application does not first sen
 
 The provider picker’s **Find new provider…** checks the Models.dev directory for explicitly free text-chat models with zero listed input and output prices. Built-in providers can be selected directly. External listings link to the provider and require checking its terms.
 
+Each provider card names a representative free model, its practical strengths, and its usage limits. The finder chooses the best model-and-quota combination for each provider. Tool calling, reasoning, image input and long context make up 60% of the ranking; daily allowance makes up 40%, with diminishing returns up to 1,000 requests per day. Where a token cap also applies, the estimate assumes 2,000 tokens per request and uses the tighter limit. Gemini figures are app reference values; check the linked provider page for your account. Providers without a comparable daily cap appear separately, ordered by capabilities.
+
 **Check for free models…** checks the selected provider: Groq’s Free Plan limits, Google’s Gemini free-tier pricing, or OpenRouter’s zero-price chat catalog. For connected Groq and Gemini accounts, results must also appear in the account’s model list. Free-tier eligibility depends on the account plan. Manual model choices outside the verified free list are labeled **check pricing**.
 
 **Default (best available)** automatically resolves to the highest-ranked free model on the selected connected provider. The practical ranking favors tool calling, image input, project recommendations, then context length up to 131,072 tokens and recency where available. Manual selection overrides the default for the session.

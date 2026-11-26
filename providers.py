@@ -79,6 +79,13 @@ PROVIDERS = {
 
 
 EXTERNAL_CONNECTIONS = {
+    "vercel": ("Vercel AI Gateway", "AI_GATEWAY_API_KEY", "https://ai-gateway.vercel.sh/v1",
+               "https://vercel.com/docs/ai-gateway"),
+    "zenmux": ("ZenMux", "ZENMUX_API_KEY", "https://zenmux.ai/api/v1",
+               "https://docs.zenmux.ai/"),
+    "tokenrouter": ("TokenRouter", "TOKENROUTER_API_KEY", "https://api.tokenrouter.com/v1",
+                    "https://www.tokenrouter.com/docs/openclaw-setup/"),
+
     "kilo": ("Kilo Gateway", "KILO_API_KEY", "https://ai-gateway.kilo.ai/api/v1",
              "https://kilo.ai/docs/gateway/authentication"),
     "opencode": ("OpenCode", "OPENCODE_API_KEY", "https://opencode.ai/inference/openai/v1",
@@ -89,6 +96,13 @@ for provider_id, (name, key, endpoint, guide) in EXTERNAL_CONNECTIONS.items():
         "name": name, "api_key": key, "base_url": endpoint,
         "setup_url": guide, "default_model": "", "recommended": [],
     }
+
+
+SESSION_PROVIDER_KEYS = {}
+
+
+def provider_key(provider):
+    return SESSION_PROVIDER_KEYS.get(provider) or os.getenv(PROVIDERS[provider]["api_key"], "").strip()
 
 
 def is_listed_free_chat(model):
@@ -117,7 +131,7 @@ def get_provider_client(provider_name):
         raise ValueError("Unsupported provider")
 
     config = PROVIDERS[provider_name]
-    api_key = os.getenv(config["api_key"])
+    api_key = provider_key(provider_name)
 
     if not api_key:
         raise ValueError(f"{config['name']} API key is not configured")
@@ -247,7 +261,7 @@ def get_available_models(provider_name, *, strict=False):
         raise ValueError("Unsupported provider")
 
     config = PROVIDERS[provider_name]
-    api_key = os.getenv(config["api_key"])
+    api_key = provider_key(provider_name)
 
     if not api_key:
         return []

@@ -21,7 +21,7 @@ from storage import (
     set_tool_enabled, set_tools_enabled
 )
 from provider_ranking import ranked_providers
-from providers import EXTERNAL_CONNECTIONS, FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
+from providers import SESSION_PROVIDER_KEYS, provider_key, EXTERNAL_CONNECTIONS, FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
 from calendar_approval import (
     get_pending_calendar_event, discard_pending_calendar_event,
@@ -335,7 +335,7 @@ def check_free_models(provider: str = "openrouter"):
     except Exception as error:
         raise HTTPException(502, f"Could not verify the free catalog for {PROVIDERS[provider]['name']}. Check the connection and API key, then retry.") from error
     return {"provider": provider, "models": models, "source": FREE_TIER_PAGES.get(provider) or PROVIDERS[provider]["setup_url"],
-            "configured": bool(os.getenv(PROVIDERS[provider]["api_key"], "").strip())}
+            "configured": bool(provider_key(provider))}
 
 
 @app.get("/api/free-providers")
@@ -346,13 +346,31 @@ def check_free_providers():
         raise HTTPException(502, "The public provider directory is unavailable. Try again.") from error
 
 
+@app.post("/api/provider-connection/{provider}", status_code=204)
+def connect_provider(provider: str, request: Request, body: dict):
+    from urllib.parse import urlsplit
+
+    origin = request.headers.get("origin")
+    if (not request.client or request.client.host not in {"127.0.0.1", "::1"}
+            or request.url.hostname not in {"127.0.0.1", "::1", "localhost"}
+            or origin is None or origin != f"{request.url.scheme}://{request.url.netloc}"
+            or urlsplit(origin).hostname != request.url.hostname):
+        raise HTTPException(403, "Open My AI Agent directly on this computer to enter a provider key.")
+    if provider not in EXTERNAL_CONNECTIONS:
+        raise HTTPException(404, "This provider needs a compatible API connection first.")
+    key = body.get("key")
+    if not isinstance(key, str) or not 1 <= len(key) <= 4096 or not key.isascii() or not key.isprintable() or any(c.isspace() for c in key):
+        raise HTTPException(422, "Enter a valid API key.")
+    SESSION_PROVIDER_KEYS[provider] = key
+
+
 @app.get("/api/providers")
 def provider_status():
     return [
         {
             "id": provider_id,
             "name": config["name"],
-            "configured": bool(os.getenv(config["api_key"], "").strip()),
+            "configured": bool(provider_key(provider_id)),
             "default_model": config["default_model"],
             "display_model": config.get(
                 "display_model", config["default_model"]

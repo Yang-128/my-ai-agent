@@ -211,9 +211,39 @@ function openModelDiscovery() {
   for (const link of modelDialog.querySelectorAll("[data-provider]")) {
     link.closest("li").hidden = link.dataset.provider !== selectedProvider;
   }
+  const keyForm = document.getElementById("external-key-form");
+  keyForm.hidden = !providerConfigs[selectedProvider]?.setup_url;
+  keyForm.reset();
+  document.getElementById("external-key-status").textContent = "";
   modelDialog.showModal();
   checkCatalog(true);
 }
+document.getElementById("external-key-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const field = document.getElementById("external-key");
+  const status = document.getElementById("external-key-status");
+  const provider = selectedProvider;
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/provider-connection/" + encodeURIComponent(provider), {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({key: field.value.trim()})
+    });
+    if (!response.ok) throw new Error((await response.json()).detail);
+    if (selectedProvider !== provider) return;
+    providerConfigs[provider].configured = true;
+    status.textContent = "Key saved for this server session. The provider checks it on your first request.";
+    await checkCatalog(true);
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    field.value = "";
+    button.disabled = false;
+  }
+});
+modelDialog.addEventListener("close", () => document.getElementById("external-key-form").reset());
 modelButton.addEventListener("click", openModelDiscovery);
 
 function getSelectedModelInfo() {
@@ -440,7 +470,7 @@ async function findProviders() {
         };
         row.append(" ", use);
       } else {
-        row.append(" · External provider");
+        row.append(" · Sign up with the provider for API access. A compatible connection is still needed.");
       }
       list.append(row);
     }

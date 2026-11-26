@@ -1,4 +1,4 @@
-const CACHE_NAME = "my-ai-agent-shell-v11";
+const CACHE_NAME = "my-ai-agent-shell-v12";
 const APP_SHELL = [
   "/",
   "/static/style.css",

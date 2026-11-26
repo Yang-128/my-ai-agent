@@ -49,6 +49,39 @@ def mac_walk_directories(start):
 
 
 @mcp.tool()
+def list_google_task_lists() -> str:
+    """List Google Tasks lists, including empty lists. Returns each list's ID and title."""
+    import json
+    from google_integrations import get_tasks_service, list_google_task_lists as fetch_lists
+
+    lists = fetch_lists(get_tasks_service())
+    return json.dumps(
+        [{"id": item["id"], "title": item["title"]} for item in lists],
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def propose_google_task_change(
+    action: str,
+    task_list_id: str,
+    task_id: str | None = None,
+    changes: dict | None = None,
+) -> str:
+    """Propose one Google Task change for approval in chat.
+
+    Use action create, update, or delete. Use a list ID from list_google_task_lists
+    or search_google_tasks. For update and delete, use the task ID and list ID
+    from the same search result. Ask the user to choose if matches are ambiguous.
+    For create, omit task_id and include a title. For update, include only the
+    requested fields. Supported changes are title, notes, due (YYYY-MM-DD or
+    null to clear), and status (needsAction or completed). For delete, omit
+    changes. The user must approve the proposal before Google Tasks is modified.
+    """
+    return "Submit this proposal through chat so the user can review and approve it."
+
+
+@mcp.tool()
 def search_google_tasks(query: str = "", show_completed: bool = True, max_results: int = 100) -> str:
     """Search Google Tasks separately from Google Calendar events. Returns task title, notes, due date, completion status, and task-list name. Use this to identify and inspect tasks; these are not calendar events."""
     import json
@@ -790,7 +823,7 @@ def mac_create_document(
             elif stripped.startswith("### "):
                 story.append(Paragraph(escape(stripped[4:]), styles["Heading2"]))
             elif stripped.startswith(("- ", "* ")):
-                story.append(Paragraph("&#8226; " + escape(stripped[2:]), styles["BodyText"]))
+                story.append(Paragraph("- " + escape(stripped[2:]), styles["BodyText"]))
             else:
                 story.append(Paragraph(escape(stripped), styles["BodyText"]))
                 story.append(Spacer(1, 4))
@@ -866,6 +899,20 @@ def mac_create_document(
                     paragraph.space_after = Pt(10)
                     paragraph.level = 0
         presentation.save(str(target))
+
+    if not target.is_file() or target.stat().st_size == 0:
+        raise RuntimeError(f"Document generation failed: output is missing or empty: {target}")
+
+    if fmt == "pdf":
+        if not target.read_bytes().startswith(b"%PDF-"):
+            raise RuntimeError(f"Document generation failed: invalid PDF signature: {target}")
+        from pypdf import PdfReader
+        try:
+            reader = PdfReader(str(target), strict=True)
+            if not reader.pages:
+                raise RuntimeError("Generated PDF contains no pages.")
+        except Exception as exc:
+            raise RuntimeError(f"Generated PDF failed structural verification: {exc}") from exc
 
     return f"Document created successfully: {target}"
 

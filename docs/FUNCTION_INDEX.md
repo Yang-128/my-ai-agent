@@ -16,40 +16,43 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 
 | Line | Kind | Symbol |
 |---:|---|---|
-| 47 | constant | `BASE_DIR` |
-| 59 | async function | `service_worker` |
-| 74 | async function | `home` |
-| 84 | constant | `FILE_BROWSER_ROOT` |
-| 85 | constant | `DOCUMENTS_ROOT` |
-| 88 | constant | `FILE_BROWSER_EXCLUDED_DIRS` |
-| 93 | constant | `FILE_BROWSER_MAX_SIZE` |
-| 96 | function | `resolve_browser_path` |
-| 114 | function | `resolve_documents_path` |
-| 124 | function | `browse_documents` |
-| 160 | function | `read_document_content` |
-| 230 | function | `browse_files` |
-| 272 | function | `read_browser_file` |
-| 298 | async function | `health` |
-| 303 | function | `conversations` |
-| 308 | function | `new_conversation` |
-| 314 | function | `conversation_detail` |
-| 324 | function | `provider_status` |
-| 341 | function | `tools_status` |
-| 359 | function | `update_tool_enabled` |
-| 379 | function | `tools_server_status` |
-| 396 | function | `run_tool` |
-| 414 | function | `daily_usage` |
-| 420 | function | `refresh_openrouter_usage` |
-| 434 | function | `refresh_usage` |
-| 492 | function | `_int_header` |
-| 501 | function | `google_calendar_connection_status` |
-| 506 | function | `google_calendar_connect` |
-| 514 | function | `google_calendar_callback` |
-| 540 | function | `google_calendar_approve_event` |
-| 725 | function | `google_gmail_connection_status` |
-| 730 | function | `google_gmail_available_attachments` |
-| 758 | function | `google_gmail_approve_message` |
-| 805 | function | `google_calendar_disconnect` |
+| 50 | constant | `BASE_DIR` |
+| 62 | async function | `service_worker` |
+| 77 | async function | `home` |
+| 87 | constant | `FILE_BROWSER_ROOT` |
+| 88 | constant | `DOCUMENTS_ROOT` |
+| 91 | constant | `FILE_BROWSER_EXCLUDED_DIRS` |
+| 96 | constant | `FILE_BROWSER_MAX_SIZE` |
+| 99 | function | `resolve_browser_path` |
+| 119 | function | `resolve_documents_path` |
+| 129 | function | `browse_documents` |
+| 165 | function | `read_document_content` |
+| 235 | function | `browse_files` |
+| 277 | function | `read_browser_file` |
+| 303 | async function | `health` |
+| 308 | function | `conversations` |
+| 313 | function | `new_conversation` |
+| 319 | function | `conversation_detail` |
+| 329 | function | `provider_status` |
+| 346 | function | `tools_status` |
+| 364 | function | `update_tool_enabled` |
+| 384 | function | `tools_server_status` |
+| 401 | function | `run_tool` |
+| 419 | function | `daily_usage` |
+| 425 | function | `refresh_openrouter_usage` |
+| 439 | function | `refresh_usage` |
+| 497 | function | `_int_header` |
+| 506 | function | `google_calendar_connection_status` |
+| 510 | function | `_calendar_signin_cookie` |
+| 517 | function | `connect_additional_calendar_account` |
+| 532 | function | `google_calendar_connect` |
+| 540 | function | `google_calendar_callback` |
+| 581 | function | `google_calendar_approve_event` |
+| 764 | function | `google_gmail_connection_status` |
+| 769 | function | `google_gmail_available_attachments` |
+| 797 | function | `google_tasks_approve` |
+| 837 | function | `google_gmail_approve_message` |
+| 884 | function | `google_calendar_disconnect` |
 
 ### `calendar_approval.py`
 
@@ -58,30 +61,33 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 10 | constant | `PENDING_FILE` |
 | 11 | constant | `_LOCK` |
 | 12 | constant | `_EXPIRY` |
-| 15 | function | `_normalize_all_day_date` |
-| 63 | function | `_read` |
-| 73 | function | `_write` |
-| 80 | function | `create_pending_calendar_action` |
-| 180 | function | `create_pending_calendar_actions` |
-| 204 | function | `update_pending_calendar_event_times` |
-| 310 | function | `get_pending_calendar_event` |
-| 325 | function | `discard_pending_calendar_event` |
+| 15 | function | `calendar_event_is_all_day` |
+| 20 | function | `calendar_event_is_all_day.endpoint_type` |
+| 36 | function | `_normalize_all_day_date` |
+| 84 | function | `_read` |
+| 94 | function | `_write` |
+| 101 | function | `create_pending_calendar_action` |
+| 201 | function | `create_pending_calendar_actions` |
+| 225 | function | `update_pending_calendar_event_times` |
+| 331 | function | `get_pending_calendar_event` |
+| 346 | function | `discard_pending_calendar_event` |
 
 ### `chat.py`
 
 | Line | Kind | Symbol |
 |---:|---|---|
-| 31 | function | `execute_chat_tool` |
-| 79 | function | `format_provider_error` |
-| 120 | class | `ChatRequest` |
-| 130 | function | `validate_images` |
-| 177 | function | `_int_header` |
-| 185 | function | `save_provider_headers` |
-| 197 | function | `ai_decide_extensions` |
-| 407 | class | `ExtensionDecisionRequest` |
-| 415 | function | `decide_extensions` |
-| 443 | function | `chat` |
-| 500 | function | `chat.generate` |
+| 33 | function | `claims_task_proposal` |
+| 43 | function | `execute_chat_tool` |
+| 91 | function | `format_provider_error` |
+| 132 | class | `ChatRequest` |
+| 142 | function | `validate_images` |
+| 189 | function | `_int_header` |
+| 197 | function | `save_provider_headers` |
+| 209 | function | `ai_decide_extensions` |
+| 438 | class | `ExtensionDecisionRequest` |
+| 446 | function | `decide_extensions` |
+| 474 | function | `chat` |
+| 531 | function | `chat.generate` |
 
 ### `gmail_approval.py`
 
@@ -105,26 +111,36 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | Line | Kind | Symbol |
 |---:|---|---|
 | 17 | constant | `REDIRECT_URI` |
-| 18 | constant | `SCOPES` |
-| 24 | constant | `TOKEN_FILE` |
-| 25 | constant | `STATE_FILE` |
-| 28 | function | `_client_config` |
-| 46 | function | `start_google_oauth` |
-| 64 | function | `finish_google_oauth` |
-| 106 | function | `get_google_credentials` |
-| 126 | function | `get_gmail_service` |
-| 135 | function | `google_gmail_status` |
-| 155 | function | `send_gmail_message` |
-| 212 | function | `get_tasks_service` |
-| 221 | function | `list_google_tasks` |
-| 273 | function | `get_calendar_service` |
-| 282 | function | `google_calendar_status` |
-| 300 | function | `create_calendar_event` |
-| 337 | function | `disconnect_google_calendar` |
-| 342 | function | `list_calendar_events` |
-| 365 | function | `get_calendar_event` |
-| 372 | function | `update_calendar_event` |
-| 397 | function | `delete_calendar_event` |
+| 18 | constant | `TASKS_WRITE_SCOPE` |
+| 19 | constant | `SCOPES` |
+| 25 | constant | `TOKEN_FILE` |
+| 26 | constant | `STATE_FILE` |
+| 29 | function | `_client_config` |
+| 47 | constant | `CALENDAR_ACCOUNT_SCOPES` |
+| 50 | function | `_calendar_signin_path` |
+| 59 | function | `_write_private_json_file` |
+| 70 | function | `start_additional_calendar_oauth` |
+| 88 | function | `finish_additional_calendar_oauth` |
+| 124 | function | `start_google_oauth` |
+| 142 | function | `finish_google_oauth` |
+| 187 | function | `calendar_token_path` |
+| 202 | function | `get_google_credentials` |
+| 222 | function | `get_gmail_service` |
+| 231 | function | `google_gmail_status` |
+| 251 | function | `send_gmail_message` |
+| 308 | function | `get_tasks_service` |
+| 317 | function | `validate_google_task_change` |
+| 362 | function | `execute_approved_google_task` |
+| 373 | function | `list_google_task_lists` |
+| 388 | function | `list_google_tasks` |
+| 429 | function | `get_calendar_service` |
+| 438 | function | `google_calendar_status` |
+| 456 | function | `create_calendar_event` |
+| 493 | function | `disconnect_google_calendar` |
+| 498 | function | `list_calendar_events` |
+| 521 | function | `get_calendar_event` |
+| 528 | function | `update_calendar_event` |
+| 553 | function | `delete_calendar_event` |
 
 ### `mcp_client.py`
 
@@ -145,26 +161,28 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 30 | constant | `MAC_MAX_READ_SIZE` |
 | 33 | function | `resolve_mac_path` |
 | 40 | function | `mac_walk_directories` |
-| 52 | function | `search_google_tasks` |
-| 60 | function | `create_calendar_events` |
-| 75 | function | `search_calendar_events` |
-| 105 | function | `get_calendar_event_details` |
-| 112 | function | `update_calendar_event` |
-| 135 | function | `delete_calendar_event` |
-| 147 | function | `send_gmail_message` |
-| 171 | function | `get_current_time` |
-| 178 | function | `read_text_file` |
-| 193 | function | `search_conversations` |
-| 289 | function | `get_conversation_history` |
-| 353 | function | `mac_list_files` |
-| 382 | function | `mac_search_files` |
-| 430 | function | `mac_read_file` |
-| 517 | function | `mac_search_file_contents` |
-| 535 | function | `mac_search_file_contents.extract_sections` |
-| 673 | function | `mac_get_system_info` |
-| 688 | function | `mac_create_document` |
-| 874 | function | `web_search` |
-| 880 | function | `web_fetch` |
+| 52 | function | `list_google_task_lists` |
+| 65 | function | `propose_google_task_change` |
+| 85 | function | `search_google_tasks` |
+| 93 | function | `create_calendar_events` |
+| 108 | function | `search_calendar_events` |
+| 138 | function | `get_calendar_event_details` |
+| 145 | function | `update_calendar_event` |
+| 168 | function | `delete_calendar_event` |
+| 180 | function | `send_gmail_message` |
+| 204 | function | `get_current_time` |
+| 211 | function | `read_text_file` |
+| 226 | function | `search_conversations` |
+| 322 | function | `get_conversation_history` |
+| 386 | function | `mac_list_files` |
+| 415 | function | `mac_search_files` |
+| 463 | function | `mac_read_file` |
+| 550 | function | `mac_search_file_contents` |
+| 568 | function | `mac_search_file_contents.extract_sections` |
+| 706 | function | `mac_get_system_info` |
+| 721 | function | `mac_create_document` |
+| 921 | function | `web_search` |
+| 927 | function | `web_fetch` |
 
 ### `providers.py`
 
@@ -184,6 +202,18 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 17 | constant | `ENV_FILE` |
 | 18 | constant | `DB_PATH` |
 
+### `school_timetable.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 7 | constant | `DAY` |
+| 8 | constant | `DAYS` |
+| 9 | constant | `CLOCK` |
+| 10 | constant | `SPAN` |
+| 11 | constant | `DAY_CODES` |
+| 14 | function | `school_time` |
+| 24 | function | `weekly_school_actions` |
+
 ### `scripts/check.py`
 
 | Line | Kind | Symbol |
@@ -202,20 +232,20 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 26 | function | `git_output` |
 | 33 | function | `safe_path` |
 | 41 | function | `file_purpose` |
-| 104 | function | `inventory` |
-| 137 | function | `python_symbols` |
-| 145 | function | `python_symbols.walk` |
-| 168 | function | `js_symbols` |
-| 203 | function | `rust_symbols` |
-| 236 | function | `imports` |
-| 250 | function | `javascript_imports` |
-| 266 | function | `rust_imports` |
-| 275 | function | `frontend_external_assets` |
-| 282 | function | `declared_dependencies` |
-| 311 | function | `generate_feature_code_map` |
-| 334 | function | `generate_feature_code_map.read_lines` |
-| 341 | function | `generate_feature_code_map.section` |
-| 437 | function | `main` |
+| 108 | function | `inventory` |
+| 141 | function | `python_symbols` |
+| 149 | function | `python_symbols.walk` |
+| 172 | function | `js_symbols` |
+| 207 | function | `rust_symbols` |
+| 240 | function | `imports` |
+| 254 | function | `javascript_imports` |
+| 270 | function | `rust_imports` |
+| 279 | function | `frontend_external_assets` |
+| 286 | function | `declared_dependencies` |
+| 315 | function | `generate_feature_code_map` |
+| 338 | function | `generate_feature_code_map.read_lines` |
+| 345 | function | `generate_feature_code_map.section` |
+| 441 | function | `main` |
 
 ### `storage.py`
 
@@ -242,6 +272,61 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 640 | function | `get_turn_usage` |
 | 689 | function | `get_tool_settings` |
 | 698 | function | `set_tool_enabled` |
+
+### `task_approval.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 10 | constant | `PENDING_DB` |
+| 11 | constant | `EXPIRY_SECONDS` |
+| 14 | class | `UnavailableTaskProposal` |
+| 18 | function | `_connect` |
+| 28 | function | `save_task_proposal` |
+| 43 | function | `consume_task_proposal` |
+| 59 | function | `prepare_google_task_proposal` |
+| 102 | function | `only_list_task_title` |
+| 116 | function | `prepare_only_list_create` |
+
+### `tests/test_calendar_approval.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 9 | class | `CalendarApprovalTests` |
+| 10 | function | `CalendarApprovalTests.setUp` |
+| 17 | function | `CalendarApprovalTests.tearDown` |
+| 21 | function | `CalendarApprovalTests.create_all_day_proposal` |
+| 32 | function | `CalendarApprovalTests.test_all_day_date_edit_replaces_both_endpoints` |
+| 42 | function | `CalendarApprovalTests.test_all_day_event_can_be_converted_to_timed` |
+| 56 | function | `CalendarApprovalTests.test_incomplete_all_day_edit_is_rejected_without_mutation` |
+| 66 | function | `CalendarApprovalTests.test_event_type_detection_rejects_mixed_or_incomplete_endpoints` |
+| 78 | function | `CalendarApprovalTests.test_event_type_detection_accepts_consistent_date_and_datetime_pairs` |
+
+### `tests/test_document_generation.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 10 | class | `PDFGenerationTests` |
+| 11 | function | `PDFGenerationTests.test_mcp_creates_and_verifies_readable_pdf` |
+
+### `tests/test_google_approvals.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 11 | class | `GoogleApprovalTests` |
+| 12 | function | `GoogleApprovalTests.test_title_only_calendar_update` |
+| 23 | function | `GoogleApprovalTests.test_task_approval_can_only_execute_once` |
+| 34 | function | `GoogleApprovalTests.test_private_google_files_are_excluded_from_project_browser` |
+
+### `tests/test_school_timetable.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 12 | constant | `PROMPT` |
+| 13 | constant | `NOW` |
+| 16 | class | `TimetableTests` |
+| 17 | function | `TimetableTests.test_weekly_request_through_approval` |
+| 45 | function | `TimetableTests.test_preserves_extra_constraints_for_normal_chat_handling` |
+| 48 | function | `TimetableTests.test_invalid_range` |
 
 ### `tests/test_storage.py`
 
@@ -293,44 +378,48 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 405 | function | `updateProviderControls` |
 | 432 | function | `refreshProviderStatus` |
 | 462 | function | `scrollToBottom` |
-| 467 | function | `renderMessageContent` |
-| 528 | constant | `CALENDAR_TIME_ZONE` |
-| 530 | function | `getCalendarDateParts` |
-| 545 | function | `formatDate` |
-| 566 | function | `toDateTimeLocal` |
-| 669 | function | `getDateAndTime` |
-| 705 | function | `makeTimePicker` |
-| 709 | function | `makeSelect` |
-| 819 | function | `updateWeekdayVisibility` |
-| 869 | function | `updateTimeVisibility` |
-| 888 | function | `refreshDetails` |
-| 978 | function | `decide` |
-| 1001 | function | `markInvalid` |
-| 1160 | function | `addField` |
-| 1204 | function | `renderAttachments` |
-| 1273 | function | `decide` |
-| 1319 | function | `addMessage` |
-| 1351 | function | `refreshHistory` |
-| 1373 | function | `openConversation` |
-| 1400 | function | `newChat` |
-| 1424 | function | `sendMessage` |
-| 1674 | function | `useSuggestion` |
-| 1678 | function | `initialize` |
-| 1710 | function | `showUsage` |
-| 1725 | function | `showChat` |
-| 1740 | function | `updateResetCountdowns` |
-| 1784 | function | `refreshUsage` |
-| 1854 | function | `isDailyLimitReached` |
-| 1867 | function | `hasKnownDailyLimit` |
-| 1975 | function | `quotaText` |
-| 2119 | function | `refreshTools` |
-| 2341 | function | `showTools` |
-| 2361 | function | `loadFiles` |
-| 2420 | function | `formatFileSize` |
-| 2427 | function | `previewFile` |
-| 2465 | function | `showFiles` |
-| 2497 | function | `refreshGoogleCalendarStatus` |
-| 2520 | function | `refreshGoogleGmailStatus` |
+| 467 | function | `renderTaskApprovalCard` |
+| 482 | function | `addDetail` |
+| 490 | function | `display` |
+| 525 | function | `decide` |
+| 556 | function | `renderMessageContent` |
+| 623 | constant | `CALENDAR_TIME_ZONE` |
+| 625 | function | `getCalendarDateParts` |
+| 640 | function | `formatDate` |
+| 661 | function | `toDateTimeLocal` |
+| 770 | function | `getDateAndTime` |
+| 806 | function | `makeTimePicker` |
+| 810 | function | `makeSelect` |
+| 920 | function | `updateWeekdayVisibility` |
+| 970 | function | `updateTimeVisibility` |
+| 989 | function | `refreshDetails` |
+| 1079 | function | `decide` |
+| 1102 | function | `markInvalid` |
+| 1261 | function | `addField` |
+| 1305 | function | `renderAttachments` |
+| 1374 | function | `decide` |
+| 1420 | function | `addMessage` |
+| 1452 | function | `refreshHistory` |
+| 1474 | function | `openConversation` |
+| 1501 | function | `newChat` |
+| 1525 | function | `sendMessage` |
+| 1775 | function | `useSuggestion` |
+| 1779 | function | `initialize` |
+| 1811 | function | `showUsage` |
+| 1826 | function | `showChat` |
+| 1841 | function | `updateResetCountdowns` |
+| 1885 | function | `refreshUsage` |
+| 1955 | function | `isDailyLimitReached` |
+| 1968 | function | `hasKnownDailyLimit` |
+| 2076 | function | `quotaText` |
+| 2220 | function | `refreshTools` |
+| 2442 | function | `showTools` |
+| 2462 | function | `loadFiles` |
+| 2521 | function | `formatFileSize` |
+| 2528 | function | `previewFile` |
+| 2566 | function | `showFiles` |
+| 2598 | function | `refreshGoogleCalendarStatus` |
+| 2621 | function | `refreshGoogleGmailStatus` |
 
 ### `static/service-worker.js`
 

@@ -17,6 +17,7 @@
 - `providers`
 - `runtime`
 - `storage`
+- `task_approval`
 - `tools`
 
 ### `backend_launcher.py`
@@ -33,7 +34,9 @@
 - `calendar_approval`
 - `gmail_approval`
 - `providers`
+- `school_timetable`
 - `storage`
+- `task_approval`
 - `tools`
 
 ### `gmail_approval.py`
@@ -62,6 +65,10 @@
 
 - No imports of other local Python modules detected.
 
+### `school_timetable.py`
+
+- No imports of other local Python modules detected.
+
 ### `scripts/check.py`
 
 - No imports of other local Python modules detected.
@@ -74,9 +81,33 @@
 
 - `runtime`
 
+### `task_approval.py`
+
+- `google_integrations`
+- `runtime`
+
 ### `test_mcp.py`
 
 - `mcp_client`
+
+### `tests/test_calendar_approval.py`
+
+- `calendar_approval`
+
+### `tests/test_document_generation.py`
+
+- `mcp_client`
+
+### `tests/test_google_approvals.py`
+
+- `app`
+- `calendar_approval`
+- `task_approval`
+
+### `tests/test_school_timetable.py`
+
+- `calendar_approval`
+- `school_timetable`
 
 ### `tests/test_storage.py`
 
@@ -142,6 +173,7 @@
 - `httpx==0.28.1`
 - `lxml==6.1.3`
 - `pypdf==7.1.0`
+- `reportlab==5.1.0`
 
 ### JavaScript
 

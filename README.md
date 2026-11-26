@@ -66,7 +66,7 @@ There is no automatic image-to-text fallback. The application does not first sen
 
 **Files** opens My AI Agent Documents. Select a folder to browse it or a file to preview it. **Tools** groups related actions together. Expand a group to enable or disable it, or expand an individual operation to inspect its parameters and try it. The chat picker uses the same groups and respects disabled operations.
 
-In **Usage**, select **Check for free models** to query OpenRouter’s public catalog without a key. The list includes text-chat models with zero listed prices and reports tool support, image input, context length and listing date where available. Choose a comparison priority or look for models added since the last check in this browser. Listings and rate limits can change. **Use in chat** selects a model for the current session.
+In the chat model dropdown, select **Check for free models…** to query OpenRouter’s public catalog without a key. The list includes text-chat models with zero listed prices and reports tool support, image input, context length and listing date where available. Choose a comparison priority or look for models added since the last check in this browser. Listings and rate limits can change. **Use in chat** selects a model for the current session.
 
 Open **Connect an API key** for official provider links and the matching environment variable. Save your key in the server’s local `.env` file and restart the app. Packaged installations use the app’s data directory for this file.
 

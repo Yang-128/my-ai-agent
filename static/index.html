@@ -48,7 +48,7 @@
       <div class="breadcrumb">Chat</div>
       <div class="top-right">
         <span class="status"><i></i> Online</span>
-        <button class="model-button">GPT OSS 120B ▾</button>
+        <button aria-haspopup="dialog" aria-controls="model-discovery" class="model-button">GPT OSS 120B ▾</button>
       </div>
     </header>
 
@@ -85,26 +85,7 @@
         <p>Monitor your AI providers and model limits.</p>
       </div>
 
-      <section class="usage-section" id="model-discovery">
-        <h2>Free models</h2>
-        <button type="button" id="check-models" class="refresh-usage">Check for free models</button>
-        <label>Compare by <select id="model-priority">
-          <option value="tools">Tool calling</option><option value="context">Context length</option>
-          <option value="image">Image input</option><option value="created">Newest listing</option>
-        </select></label>
-        <p id="catalog-status" role="status"></p>
-        <div id="catalog-results"></div>
-        <details id="key-guide"><summary>Connect an API key</summary>
-          <p>Create a key with your provider. On the computer running My AI Agent, open the project’s <code>.env</code> file and set the matching entry to your key.</p>
-          <ul>
-            <li><a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">OpenRouter keys</a> · <code>OPENROUTER_API_KEY</code></li>
-            <li><a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">Groq keys</a> · <code>GROQ_API_KEY</code></li>
-            <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio keys</a> · <code>GEMINI_API_KEY</code></li>
-          </ul>
-          <p>Save the file, restart the server, and refresh this page. The connection status updates when the app reloads.</p>
-          <p id="key-status" role="status"></p>
-        </details>
-      </section>
+
 
       <div class="usage-summary" id="usage-summary"></div>
 
@@ -212,6 +193,27 @@
     </nav>
   </main>
 
+      <dialog id="model-discovery" aria-labelledby="discovery-heading">
+        <header><h2 id="discovery-heading">Free models</h2><form method="dialog"><button class="refresh-usage">Close</button></form></header>
+        <button type="button" id="check-models" class="refresh-usage">Check for free models</button>
+        <label>Compare by <select id="model-priority">
+          <option value="tools">Tool calling</option><option value="context">Context length</option>
+          <option value="image">Image input</option><option value="created">Newest listing</option>
+        </select></label>
+        <p id="catalog-status" role="status"></p>
+        <div id="catalog-results"></div>
+        <details id="key-guide"><summary>Connect an API key</summary>
+          <p>Create a key with your provider. On the computer running My AI Agent, open the project’s <code>.env</code> file and set the matching entry to your key.</p>
+          <ul>
+            <li><a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">OpenRouter keys</a> · <code>OPENROUTER_API_KEY</code></li>
+            <li><a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">Groq keys</a> · <code>GROQ_API_KEY</code></li>
+            <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio keys</a> · <code>GEMINI_API_KEY</code></li>
+          </ul>
+          <p>Save the file, restart the server, and refresh this page. The connection status updates when the app reloads.</p>
+          <p id="key-status" role="status"></p>
+        </details>
+      </dialog>
+
   <dialog id="history-dialog" aria-labelledby="history-heading">
     <header>
       <h2 id="history-heading">Conversation history</h2>
@@ -219,7 +221,7 @@
     </header>
   </dialog>
 
-  <script src="/static/app.js?v=capability-groups"></script>
+  <script src="/static/app.js?v=chat-model-discovery"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>

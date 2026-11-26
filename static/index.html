@@ -29,7 +29,7 @@
     <button class="nav-item" id="files-nav">📁 &nbsp; Files</button>
 
     <div class="side-label history-label">RECENT</div>
-    <div id="history" class="history">
+    <div id="history" class="history" role="region" aria-label="Conversation history" tabindex="0">
       <div class="history-item selected">New conversation</div>
     </div>
 
@@ -180,6 +180,9 @@
       <button type="button" data-page="chat" class="active" aria-label="Chat">
         <span>💬</span><small>Chat</small>
       </button>
+      <button type="button" id="open-history" aria-haspopup="dialog">
+        <span aria-hidden="true">◷</span><small>History</small>
+      </button>
       <button type="button" data-page="tools" aria-label="Tools">
         <span>🧰</span><small>Tools</small>
       </button>
@@ -192,7 +195,14 @@
     </nav>
   </main>
 
-  <script src="/static/app.js?v=20261119-usagecards1"></script>
+  <dialog id="history-dialog" aria-labelledby="history-heading">
+    <header>
+      <h2 id="history-heading">Conversation history</h2>
+      <form method="dialog"><button autofocus>Close</button></form>
+    </header>
+  </dialog>
+
+  <script src="/static/app.js?v=history-scroll"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>

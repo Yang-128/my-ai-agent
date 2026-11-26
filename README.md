@@ -36,7 +36,7 @@ The development server uses `127.0.0.1:8000`.
 - Usage tracking.
 - Optional Tauri desktop packaging.
 
-Scroll the **Recent** list in the desktop sidebar to open older conversations. On a phone, tap **History** in the bottom navigation.
+Conversation titles use the full opening message and wrap within the history list. Scroll the **Recent** list in the desktop sidebar to open older conversations. On a phone, tap **History** in the bottom navigation.
 
 See [the feature guide](docs/FEATURE_GUIDE.md) for implementation locations.
 

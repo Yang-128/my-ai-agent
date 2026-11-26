@@ -98,6 +98,14 @@ button {
   margin-top: 32px;
 }
 
+.history, .conversation {
+  scrollbar-width: none;
+}
+
+.history::-webkit-scrollbar, .conversation::-webkit-scrollbar {
+  display: none;
+}
+
 .history {
   flex: 1 1 auto;
   min-height: 0;
@@ -145,6 +153,7 @@ button {
 }
 
 .history-item {
+  overflow-wrap: anywhere;
   width: 100%;
   font-size: 12px;
 }

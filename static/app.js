@@ -1762,10 +1762,12 @@ async function sendMessage(text) {
         }
       }
 
+      const followReply = conversationPage.scrollHeight - conversationPage.clientHeight - conversationPage.scrollTop <= 8;
       renderMessageContent(responseMessage, responseRaw);
       if (!responseMessage.textContent.trim()) {
         responseMessage.textContent = "The model returned an empty response.";
       }
+      if (followReply) scrollToBottom();
       break;
     }
 
@@ -1775,9 +1777,8 @@ async function sendMessage(text) {
     responseMessage.textContent = "Error: " + error.message;
   } finally {
     input.disabled = false;
-    input.focus();
+    input.focus({ preventScroll: true });
     busy = false;
-    scrollToBottom();
   }
 }
 

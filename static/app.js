@@ -98,189 +98,86 @@ function fileToDataUrl(file) {
   });
 }
 
-let manualSelectionResolver = null;
 
 toolPickerButton.addEventListener("click", async () => {
   toolPickerMenu.hidden = !toolPickerMenu.hidden;
-  if (!toolPickerMenu.hidden) {
+  if (!toolPickerMenu.hidden && !toolPickerMenu.querySelector("input")) {
     await refreshComposerTools();
   }
 });
 
 toolPickerMenu.querySelector(".tool-picker-close").addEventListener("click", () => {
   toolPickerMenu.hidden = true;
-  if (manualSelectionResolver) {
-    const resolve = manualSelectionResolver;
-    manualSelectionResolver = null;
-    resolve(null);
-  }
+
 });
 
 document.addEventListener("pointerdown", event => {
-  if (manualSelectionResolver) return;
   if (!toolPickerMenu.hidden && !toolPickerMenu.contains(event.target)) {
     toolPickerMenu.hidden = true;
   }
 }, true);
 
-function updateToolPickerLabel() {
-  toolPickerButton.textContent = selectedTools.size
-    ? `Tools (${selectedTools.size}) ▾`
-    : "Tools (off) ▾";
+function capability(name) {
+  const id = name.replace(/^mcp_/, "");
+  if (id.includes("calendar")) return "Calendar actions";
+  if (id.includes("google_task")) return "Tasks";
+  if (id.includes("gmail")) return "Email";
+  if (id.includes("conversation")) return "Memory";
+  if (id.startsWith("web_")) return "Web search";
+  if (/file|document/.test(id)) return "Documents & files";
+  if (/system_info|current_time/.test(id)) return "System";
+  return "Other tools";
 }
 
-async function refreshComposerTools(allowDisabled = false, targetMenu = toolPickerMenu) {
-  const list = targetMenu.querySelector(".tool-picker-list");
+function groupTools(tools) {
+  const groups = new Map();
+  for (const tool of tools) {
+    const name = capability(tool.name);
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(tool);
+  }
+  return [...groups].sort(([a], [b]) => a.localeCompare(b));
+}
 
+function updateToolPickerLabel() {
+  const count = new Set([...selectedTools].map(capability)).size;
+  toolPickerButton.textContent = count ? `Tools (${count}) ▾` : "Tools (off) ▾";
+}
+
+async function refreshComposerTools() {
+  const list = toolPickerMenu.querySelector(".tool-picker-list");
   try {
     const response = await fetch("/api/tools");
     if (!response.ok) throw new Error("Could not load tools");
-
     const tools = await response.json();
     selectedTools.clear();
     list.replaceChildren();
-
-    if (!tools.length) {
-      list.textContent = "No tools available.";
-      updateToolPickerLabel();
-      return;
-    }
-
-    [...tools]
-      .sort((a, b) => Number(a.enabled === false) - Number(b.enabled === false))
-      .forEach(tool => {
+    for (const tool of tools) if (tool.enabled) selectedTools.add(tool.name);
+    for (const [name, members] of groupTools(tools)) {
       const label = document.createElement("label");
-      label.className = tool.enabled === false ? "tool-picker-option disabled" : "tool-picker-option";
-
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = tool.enabled !== false;
-      checkbox.disabled = tool.enabled === false && !allowDisabled;
-
-      if (checkbox.checked) selectedTools.add(tool.name);
-
-      const details = document.createElement("span");
-      details.className = "tool-picker-details";
-
-      const name = document.createElement("strong");
-      name.textContent = tool.name;
-      if (tool.enabled === false) {
-        name.style.textDecoration = "line-through";
-        label.style.opacity = "0.5";
-      }
-
-      const description = document.createElement("small");
-      description.textContent = tool.enabled === false
-        ? (allowDisabled ? "Currently disabled — select to enable" : "Disabled in Tools & MCP")
-        : (tool.description || tool.source);
-
-      details.append(name, description);
-      label.append(checkbox, details);
+      label.className = "tool-picker-option";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      const available = members.filter(tool => tool.enabled);
+      const count = members.filter(tool => selectedTools.has(tool.name)).length;
+      box.checked = available.length > 0 && count === available.length;
+      box.indeterminate = count > 0 && count < available.length;
+      box.disabled = !available.length;
+      label.append(box, name);
       list.append(label);
-
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) {
-          selectedTools.add(tool.name);
-          label.classList.remove("disabled");
-          label.style.opacity = "1";
-          name.style.textDecoration = "none";
-          description.textContent = tool.description || tool.source;
-        } else {
-          selectedTools.delete(tool.name);
-          label.classList.add("disabled");
-          label.style.opacity = "0.5";
-          name.style.textDecoration = "line-through";
-          description.textContent = allowDisabled
-            ? "Will be disabled when you confirm"
-            : "Disabled in Tools & MCP";
+      box.addEventListener("change", () => {
+        for (const tool of available) {
+          if (box.checked) selectedTools.add(tool.name);
+          else selectedTools.delete(tool.name);
         }
         updateToolPickerLabel();
       });
-    });
-
+    }
+    if (!tools.length) list.textContent = "No tools available.";
     updateToolPickerLabel();
   } catch (error) {
     list.textContent = error.message;
   }
-}
-
-
-
-async function chooseManualTools() {
-  const overlay = document.createElement("div");
-  overlay.className = "tool-selection-overlay";
-  overlay.innerHTML = `
-    <section class="tool-selection-dialog" role="dialog" aria-modal="true" aria-labelledby="tool-selection-title">
-      <header class="tool-selection-heading">
-        <h2 id="tool-selection-title">Choose tools</h2>
-        <p>Select the tools this request may use.</p>
-      </header>
-      <div class="tool-picker-list">Loading tools...</div>
-      <footer class="tool-selection-actions">
-        <button type="button" class="tool-selection-cancel">Cancel</button>
-        <button type="button" class="tool-selection-confirm">Confirm</button>
-      </footer>
-    </section>
-  `;
-  document.body.append(overlay);
-
-  const list = overlay.querySelector(".tool-picker-list");
-  const cancelButton = overlay.querySelector(".tool-selection-cancel");
-  const confirmButton = overlay.querySelector(".tool-selection-confirm");
-
-  await refreshComposerTools(true, overlay);
-
-  return new Promise(resolve => {
-    manualSelectionResolver = resolve;
-
-    const close = result => {
-      if (manualSelectionResolver !== resolve) return;
-      manualSelectionResolver = null;
-      overlay.remove();
-      resolve(result);
-    };
-
-    cancelButton.addEventListener("click", () => close(null));
-
-    confirmButton.addEventListener("click", async () => {
-      if (manualSelectionResolver !== resolve) return;
-
-      confirmButton.disabled = true;
-      cancelButton.disabled = true;
-
-      try {
-        const selected = new Set(selectedTools);
-        const response = await fetch("/api/tools");
-        if (!response.ok) throw new Error("Could not load available tools.");
-
-        const tools = await response.json();
-        const updates = await Promise.all(tools.map(tool =>
-          fetch(`/api/tools/${encodeURIComponent(tool.name)}/enabled`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ enabled: selected.has(tool.name) })
-          })
-        ));
-
-        if (updates.some(item => !item.ok)) {
-          throw new Error("Could not update the selected tools.");
-        }
-
-        await refreshComposerTools();
-        close([...selected]);
-      } catch (error) {
-        confirmButton.disabled = false;
-        cancelButton.disabled = false;
-        let errorMessage = list.querySelector(".tool-selection-error");
-        if (!errorMessage) {
-          errorMessage = document.createElement("p");
-          errorMessage.className = "tool-selection-error";
-          list.append(errorMessage);
-        }
-        errorMessage.textContent = error.message;
-      }
-    });
-  });
 }
 
 let currentConversationId = null;
@@ -312,6 +209,106 @@ function getSelectedModelInfo() {
   const provider = providerConfigs[selectedProvider];
   return (provider?.models || []).find(model => model.id === selectedModel);
 }
+
+const checkModels = document.getElementById("check-models");
+const catalogStatus = document.getElementById("catalog-status");
+const catalogResults = document.getElementById("catalog-results");
+const priority = document.getElementById("model-priority");
+let discoveredModels = [];
+let newModelIds = new Set();
+let routerConfigured = false;
+
+function renderDiscoveredModels() {
+  catalogResults.replaceChildren();
+  const score = model => {
+    if (priority.value === "context") return model.context_length;
+    if (priority.value === "created") return model.created;
+    return Number(model.capabilities[priority.value]);
+  };
+  const sorted = [...discoveredModels].sort((a, b) =>
+    score(b) - score(a) || b.created - a.created || a.id.localeCompare(b.id)
+  );
+  const current = getSelectedModelInfo();
+  if (sorted.length) {
+    const comparison = document.createElement("p");
+    comparison.textContent = `Current: ${current?.name || selectedModel || "No model selected"}`;
+    if (current?.context_length) comparison.textContent += ` · ${current.context_length.toLocaleString()} context`;
+    catalogResults.append(comparison);
+  }
+  for (const model of sorted) {
+    const row = document.createElement("article");
+    const title = document.createElement("strong");
+    title.textContent = model.name + (newModelIds.has(model.id) ? " · New since last check" : "");
+    const info = document.createElement("small");
+    const facts = [];
+    if (current && selectedModel !== model.id) {
+      if (current.context_length && model.context_length > current.context_length) facts.push("Longer context than current");
+      if (current.capabilities?.tools === false && model.capabilities.tools) facts.push("Adds tool calling");
+      if (current.capabilities?.image === false && model.capabilities.image) facts.push("Adds image input");
+    }
+    if (model.context_length) facts.push(`${model.context_length.toLocaleString()} context`);
+    if (model.capabilities.tools) facts.push("Tool calling");
+    if (model.capabilities.image) facts.push("Image input");
+    if (model.created) facts.push(`Listed ${new Date(model.created * 1000).toLocaleDateString()}`);
+    info.textContent = facts.join(" · ");
+    const button = document.createElement("button");
+    button.className = "refresh-usage";
+    button.type = "button";
+    const active = selectedProvider === "openrouter" && model.id === selectedModel;
+    button.textContent = active ? "Selected" : routerConfigured ? "Use in chat" : "Connect OpenRouter";
+    button.disabled = active && routerConfigured;
+    button.onclick = () => {
+      if (!routerConfigured) {
+        const guide = document.getElementById("key-guide");
+        guide.open = true;
+        guide.scrollIntoView({block: "center"});
+        guide.querySelector("a").focus({preventScroll: true});
+        return;
+      }
+      providerConfigs.openrouter = {...providerConfigs.openrouter, name: "OpenRouter", configured: true, models: discoveredModels};
+      selectedProvider = providerSelector.value = "openrouter";
+      selectedModel = model.id;
+      updateProviderControls();
+      providerStatus.textContent = "● API key configured";
+      providerStatus.className = "provider-ready";
+      renderDiscoveredModels();
+      document.querySelector('#mobile-navigation [data-page="chat"]').click();
+    };
+    row.append(title, info, button);
+    catalogResults.append(row);
+  }
+}
+
+checkModels.addEventListener("click", async () => {
+  checkModels.disabled = true;
+  catalogResults.replaceChildren();
+  discoveredModels = [];
+  catalogStatus.textContent = "Checking OpenRouter’s public catalog…";
+  try {
+    const response = await fetch("/api/free-models", {cache: "no-store"});
+    if (!response.ok) throw new Error("Could not check the catalog. Try again.");
+    const data = await response.json();
+    routerConfigured = data.configured;
+    discoveredModels = data.models;
+    newModelIds = new Set();
+    try {
+      const key = "last-openrouter-free-models";
+      const previous = JSON.parse(localStorage.getItem(key));
+      const ids = discoveredModels.map(model => model.id);
+      if (Array.isArray(previous)) newModelIds = new Set(ids.filter(id => !previous.includes(id)));
+      localStorage.setItem(key, JSON.stringify(ids));
+    } catch { /* Comparison still works when browser storage is unavailable. */ }
+    catalogStatus.textContent = discoveredModels.length
+      ? `${discoveredModels.length} free chat models on OpenRouter · ${new Date().toLocaleTimeString()}. Provider rate limits apply.`
+      : "OpenRouter currently lists no qualifying free chat models.";
+    renderDiscoveredModels();
+  } catch (error) {
+    catalogStatus.textContent = error.message;
+  } finally {
+    checkModels.disabled = false;
+  }
+});
+priority.addEventListener("change", renderDiscoveredModels);
 
 function getGeminiSpeedInfo(model) {
   const id = (model.id || "").toLowerCase();
@@ -389,7 +386,7 @@ providerModelInput.style.display = "none";
 form.parentElement.insertBefore(providerModelInput, form);
 
 const providerStatus = document.createElement("span");
-providerStatus.id = "provider-status";
+providerStatus.id = "composer-provider-status";
 providerStatus.textContent = "Checking providers...";
 form.parentElement.insertBefore(providerStatus, form);
 
@@ -437,6 +434,7 @@ async function refreshProviderStatus() {
     const providers = await response.json();
 
     providerConfigs = {};
+    document.getElementById("key-status").textContent = providers.map(p => p.name + (p.configured ? " · key configured" : " · key missing")).join(" | ");
     providers.forEach(provider => {
       providerConfigs[provider.id] = provider;
     });
@@ -756,7 +754,7 @@ function renderMessageContent(message, text) {
         if (event.description) lines.push(`Description: ${event.description}`);
       } else if (action === "delete") {
         lines.push("This event will be permanently deleted from Google Calendar.");
-        if (item.event_id) lines.push(`Event ID: ${item.event_id}`);
+        if (event.summary || item.summary) lines.push(event.summary || item.summary);
       }
 
       details.textContent = lines.join("\n");
@@ -1605,86 +1603,10 @@ async function sendMessage(text) {
       if (decisionResponse.ok) {
         const decision = await decisionResponse.json();
 
-        if (decision.needs_extensions && decision.required_extensions.length) {
-          const names = decision.required_extensions
-            .map(name => name.replace(/^mcp_/, "").replaceAll("_", " "))
-            .join("\n• ");
-
-          const approved = window.confirm(
-            "I recommend enabling these extensions for this request:\n\n" +
-            "• " + names +
-            (decision.reason ? "\n\nReason: " + decision.reason : "") +
-            "\n\nApprove this selection?\n\n" +
-            "Choose Cancel to select tools manually."
-          );
-
-          if (approved) {
-            const toolsResponse = await fetch("/api/tools");
-            if (!toolsResponse.ok) throw new Error("Could not load available extensions.");
-
-            const availableTools = await toolsResponse.json();
-            const mcpTools = availableTools.filter(tool => tool.source === "MCP");
-
-            const updates = await Promise.all(mcpTools.map(tool =>
-              fetch(`/api/tools/${encodeURIComponent(tool.name)}/enabled`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  enabled: decision.required_extensions.includes(tool.name)
-                })
-              })
-            ));
-
-            if (updates.some(response => !response.ok)) {
-              throw new Error("Could not update extension settings.");
-            }
-
-            toolsForThisMessage = decision.required_extensions;
-            await refreshComposerTools();
-          } else {
-            const manualTools = await chooseManualTools();
-            if (manualTools === null) {
-              responseMessage.textContent = "Request cancelled.";
-              return;
-            }
-            toolsForThisMessage = manualTools;
-          }
-        } else {
-          const disableAll = window.confirm(
-            "No extensions are needed for this request.\n\n" +
-            "Disable all MCP extensions?\n\n" +
-            "Choose Cancel to select tools manually."
-          );
-
-          if (disableAll) {
-            const toolsResponse = await fetch("/api/tools");
-            if (!toolsResponse.ok) throw new Error("Could not load available extensions.");
-
-            const availableTools = await toolsResponse.json();
-            const mcpTools = availableTools.filter(tool => tool.source === "MCP");
-
-            const updates = await Promise.all(mcpTools.map(tool =>
-              fetch(`/api/tools/${encodeURIComponent(tool.name)}/enabled`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ enabled: false })
-              })
-            ));
-
-            if (updates.some(response => !response.ok)) {
-              throw new Error("Could not disable extensions.");
-            }
-
-            toolsForThisMessage = [];
-            await refreshComposerTools();
-          } else {
-            const manualTools = await chooseManualTools();
-            if (manualTools === null) {
-              responseMessage.textContent = "Request cancelled.";
-              return;
-            }
-            toolsForThisMessage = manualTools;
-          }
+        if (Array.isArray(decision.required_extensions)) {
+          toolsForThisMessage = decision.needs_extensions
+            ? toolsForThisMessage.filter(name => decision.required_extensions.includes(name))
+            : [];
         }
       } else {
         console.warn("Extension assessment unavailable; using manual tool selection.");
@@ -1735,10 +1657,10 @@ async function sendMessage(text) {
         /attempted to call tool ['"]([^'"]+)['"] which was not in request\.tools/i
       );
 
-      if (missingToolMatch && retryWithMissingTool) {
+      if (missingToolMatch && retryWithMissingTool && selectedTools.has(missingToolMatch[1])) {
         const missingTool = missingToolMatch[1];
         const approved = window.confirm(
-          `The model tried to use an extension that was not included: ${missingTool}\n\n` +
+          `The model tried to use an extension that was not included: ${capability(missingTool)}\n\n` +
           "Add this extension to the current request and retry?"
         );
 
@@ -1748,7 +1670,7 @@ async function sendMessage(text) {
             throw new Error("Could not load available extensions.");
           }
           const availableTools = await toolsResponse.json();
-          if (!availableTools.some(tool => tool.name === missingTool)) {
+          if (!availableTools.some(tool => tool.name === missingTool && tool.enabled)) {
             throw new Error(`The requested extension ${missingTool} is not available.`);
           }
 
@@ -1840,7 +1762,7 @@ async function showUsage() {
   chatNav.classList.remove("active");
   toolsNav.classList.remove("active");
   usageNav.classList.add("active");
-  breadcrumb.innerHTML = "Workspace <span>/</span> Usage";
+  breadcrumb.innerHTML = "Usage";
 
   await refreshUsage();
 }
@@ -1855,7 +1777,7 @@ function showChat() {
   usageNav.classList.remove("active");
   toolsNav.classList.remove("active");
   chatNav.classList.add("active");
-  breadcrumb.innerHTML = "Workspace <span>/</span> Chat";
+  breadcrumb.innerHTML = "Chat";
 
   refreshHistory();
 }
@@ -2249,213 +2171,245 @@ async function refreshTools() {
     const response = await fetch("/api/tools");
     if (!response.ok) throw new Error("Could not load available tools");
     const tools = await response.json();
-    const builtIn = tools.filter(t => t.source === "Built-in").length;
-    const mcp = tools.filter(t => t.source === "MCP").length;
-
-    summary.innerHTML = `
-      <div class="usage-card"><span>Total available tools</span><strong>${tools.length}</strong></div>
-      <div class="usage-card"><span>Built-in tools</span><strong>${builtIn}</strong></div>
-      <div class="usage-card"><span>MCP server tools</span><strong>${mcp}</strong></div>
-    `;
-    list.innerHTML = "";
-
+    summary.textContent = "";
+    list.replaceChildren();
     if (!tools.length) {
       list.textContent = "No tools are currently available.";
       return;
     }
-
-    tools.forEach(tool => {
-      const card = document.createElement("article");
-      card.className = "tool-card";
-
-      const header = document.createElement("div");
-      header.className = "tool-card-header";
-
-      const name = document.createElement("strong");
-      name.className = "tool-name";
-      name.textContent = tool.name;
-
-      const source = document.createElement("span");
-      source.className = `tool-source ${tool.source === "MCP" ? "mcp" : "builtin"}`;
-      source.textContent = tool.source;
-      header.append(name, source);
-
-      const description = document.createElement("p");
-      description.className = "tool-description";
-      description.textContent = tool.description || "No description provided.";
-
-      const properties = tool.parameters?.properties || {};
-      const required = tool.parameters?.required || [];
-      const parameterArea = document.createElement("div");
-      parameterArea.className = "tool-parameters";
-
-      const title = document.createElement("span");
-      title.className = "tool-parameters-title";
-      title.textContent = Object.keys(properties).length ? "Test parameters" : "No parameters required";
-      parameterArea.appendChild(title);
-
-      const controls = {};
-
-      Object.entries(properties).forEach(([key, parameter]) => {
-        const field = document.createElement("label");
-        field.className = "tool-test-field";
-
-        const label = document.createElement("span");
-        label.textContent = `${key}${required.includes(key) ? " *" : ""}`;
-
-        let control;
-        if (Array.isArray(parameter.enum)) {
-          control = document.createElement("select");
-          parameter.enum.forEach(value => {
-            const option = document.createElement("option");
-            option.value = String(value);
-            option.textContent = String(value);
-            control.appendChild(option);
+    for (const [group, members] of groupTools(tools)) {
+      const section = document.createElement("details");
+      section.className = "capability-group";
+      const heading = document.createElement("summary");
+      const enabledCount = members.filter(tool => tool.enabled).length;
+      heading.textContent = `${group} · ${enabledCount}/${members.length} enabled`;
+      const groupToggle = document.createElement("button");
+      groupToggle.className = "refresh-usage";
+      const enable = enabledCount !== members.length;
+      groupToggle.textContent = enable ? "Enable all" : "Disable all";
+      groupToggle.setAttribute("aria-label", groupToggle.textContent + " in " + group);
+      groupToggle.onclick = async () => {
+        groupToggle.disabled = true;
+        try {
+          const response = await fetch("/api/tool-settings/batch", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({names: members.map(tool => tool.name), enabled: enable})
           });
-        } else if (parameter.type === "boolean") {
-          control = document.createElement("input");
-          control.type = "checkbox";
-        } else {
-          control = document.createElement("input");
-          control.type = ["integer", "number"].includes(parameter.type) ? "number" : "text";
-          if (parameter.type === "integer") control.step = "1";
-          if (parameter.type === "number") control.step = "any";
-          control.placeholder = parameter.description || `Enter ${key}`;
-        }
+          if (!response.ok) throw new Error("Could not save these settings. Refresh and try again.");
+          await refreshTools();
+          await refreshComposerTools();
+        } catch (error) { summary.textContent = error.message; groupToggle.disabled = false; }
+      };
+      const description = document.createElement("p");
+      description.textContent = {
+        "Calendar actions": "Find events and propose calendar changes.",
+        "Tasks": "Find, create, update, and complete Google Tasks.",
+        "Email": "Prepare Gmail messages for approval.",
+        "Documents & files": "Find and read files, or create a document.",
+        "Memory": "Search and reopen past conversations.",
+        "System": "Check local time and system information.",
+        "Web search": "Search the web and read a page.",
+        "Other tools": "Additional tools available to this agent."
+      }[group];
+      section.append(heading, description, groupToggle);
+      list.append(section);
+      members.forEach(tool => {
+        const card = document.createElement("details");
+        card.className = "tool-card";
 
-        control.name = key;
-        control.required = required.includes(key);
-        if (parameter.default !== undefined && parameter.type !== "boolean") {
-          control.value = String(parameter.default);
-        }
+        const header = document.createElement("summary");
+        header.className = "tool-card-header";
 
-        field.append(label, control);
-        parameterArea.appendChild(field);
-        controls[key] = { control, schema: parameter };
-      });
+        const name = document.createElement("strong");
+        name.className = "tool-name";
+        name.textContent = tool.name.replace(/^mcp_/, "").replaceAll("_", " ");
 
-      const runButton = document.createElement("button");
-      runButton.type = "button";
-      runButton.className = "tool-run-button";
-      runButton.textContent = "Run tool";
+        const source = document.createElement("span");
+        source.className = `tool-source ${tool.source === "MCP" ? "mcp" : "builtin"}`;
+        source.textContent = tool.source;
+        header.append(name, source);
 
-      const result = document.createElement("pre");
-      result.className = "tool-run-result";
-      result.hidden = true;
+        const description = document.createElement("p");
+        description.className = "tool-description";
+        description.textContent = tool.description || "No description provided.";
 
-      runButton.addEventListener("click", async () => {
-        const args = {};
+        const properties = tool.parameters?.properties || {};
+        const required = tool.parameters?.required || [];
+        const parameterArea = document.createElement("div");
+        parameterArea.className = "tool-parameters";
 
-        for (const [key, entry] of Object.entries(controls)) {
-          const { control, schema } = entry;
-          const raw = control.type === "checkbox" ? control.checked : control.value;
+        const title = document.createElement("span");
+        title.className = "tool-parameters-title";
+        title.textContent = Object.keys(properties).length ? "Test parameters" : "No parameters required";
+        parameterArea.appendChild(title);
 
-          if (control.required && raw === "") {
-            control.reportValidity();
-            return;
+        const controls = {};
+
+        Object.entries(properties).forEach(([key, parameter]) => {
+          const field = document.createElement("label");
+          field.className = "tool-test-field";
+
+          const label = document.createElement("span");
+          label.textContent = `${key}${required.includes(key) ? " *" : ""}`;
+
+          let control;
+          if (Array.isArray(parameter.enum)) {
+            control = document.createElement("select");
+            parameter.enum.forEach(value => {
+              const option = document.createElement("option");
+              option.value = String(value);
+              option.textContent = String(value);
+              control.appendChild(option);
+            });
+          } else if (parameter.type === "boolean") {
+            control = document.createElement("input");
+            control.type = "checkbox";
+          } else {
+            control = document.createElement("input");
+            control.type = ["integer", "number"].includes(parameter.type) ? "number" : "text";
+            if (parameter.type === "integer") control.step = "1";
+            if (parameter.type === "number") control.step = "any";
+            control.placeholder = parameter.description || `Enter ${key}`;
           }
 
-          if (schema.type === "boolean") {
-            args[key] = raw;
-          } else if (raw !== "") {
-            if (schema.type === "integer") {
-              const value = Number(raw);
-              if (!Number.isInteger(value)) {
-                control.setCustomValidity("Enter a whole number.");
-                control.reportValidity();
-                control.setCustomValidity("");
-                return;
-              }
-              args[key] = value;
-            } else if (schema.type === "number") {
-              const value = Number(raw);
-              if (!Number.isFinite(value)) return;
-              args[key] = value;
-            } else {
+          control.name = key;
+          control.required = required.includes(key);
+          if (parameter.default !== undefined && parameter.type !== "boolean") {
+            control.value = String(parameter.default);
+          }
+
+          field.append(label, control);
+          parameterArea.appendChild(field);
+          controls[key] = { control, schema: parameter };
+        });
+
+        const runButton = document.createElement("button");
+        runButton.type = "button";
+        runButton.className = "tool-run-button";
+        runButton.textContent = "Run tool";
+
+        const result = document.createElement("pre");
+        result.className = "tool-run-result";
+        result.hidden = true;
+
+        runButton.addEventListener("click", async () => {
+          const args = {};
+
+          for (const [key, entry] of Object.entries(controls)) {
+            const { control, schema } = entry;
+            const raw = control.type === "checkbox" ? control.checked : control.value;
+
+            if (control.required && raw === "") {
+              control.reportValidity();
+              return;
+            }
+
+            if (schema.type === "boolean") {
               args[key] = raw;
+            } else if (raw !== "") {
+              if (schema.type === "integer") {
+                const value = Number(raw);
+                if (!Number.isInteger(value)) {
+                  control.setCustomValidity("Enter a whole number.");
+                  control.reportValidity();
+                  control.setCustomValidity("");
+                  return;
+                }
+                args[key] = value;
+              } else if (schema.type === "number") {
+                const value = Number(raw);
+                if (!Number.isFinite(value)) return;
+                args[key] = value;
+              } else {
+                args[key] = raw;
+              }
             }
           }
-        }
 
-        runButton.disabled = true;
-        runButton.textContent = "Running...";
-        result.hidden = false;
-        result.textContent = "Executing...";
-        result.classList.remove("error");
-
-        try {
-          const response = await fetch(
-            `/api/tools/${encodeURIComponent(tool.name)}/run`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(args)
-            }
-          );
-          const payload = await response.json();
-          if (!response.ok) throw new Error(payload.detail || "Tool execution failed");
-          result.textContent = payload.result ?? "Completed successfully.";
-        } catch (error) {
-          result.textContent = error.message;
-          result.classList.add("error");
-        } finally {
-          runButton.disabled = tool.enabled === false;
-          runButton.textContent = tool.enabled === false
-            ? "Tool disabled"
-            : "Run tool";
-        }
-      });
-
-      const toggleLabel = document.createElement("label");
-      toggleLabel.className = "tool-enable-toggle";
-
-      const toggle = document.createElement("input");
-      toggle.type = "checkbox";
-      toggle.checked = tool.enabled !== false;
-      toggle.setAttribute("aria-label", `Enable ${tool.name}`);
-
-      const toggleText = document.createElement("span");
-      toggleText.textContent = toggle.checked ? "Enabled" : "Disabled";
-
-      toggle.addEventListener("change", async () => {
-        toggle.disabled = true;
-        try {
-          const response = await fetch(
-            `/api/tools/${encodeURIComponent(tool.name)}/enabled`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ enabled: toggle.checked })
-            }
-          );
-
-          const payload = await response.json();
-          if (!response.ok) throw new Error(payload.detail || "Could not update tool");
-
-          tool.enabled = payload.enabled;
-          toggleText.textContent = payload.enabled ? "Enabled" : "Disabled";
-          runButton.disabled = !payload.enabled;
-          runButton.textContent = payload.enabled ? "Run tool" : "Tool disabled";
-          card.classList.toggle("tool-disabled", !payload.enabled);
-        } catch (error) {
-          toggle.checked = !toggle.checked;
-          toggleText.textContent = toggle.checked ? "Enabled" : "Disabled";
+          runButton.disabled = true;
+          runButton.textContent = "Running...";
           result.hidden = false;
-          result.textContent = error.message;
-          result.classList.add("error");
-        } finally {
-          toggle.disabled = false;
-        }
+          result.textContent = "Executing...";
+          result.classList.remove("error");
+
+          try {
+            const response = await fetch(
+              `/api/tools/${encodeURIComponent(tool.name)}/run`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(args)
+              }
+            );
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.detail || "Tool execution failed");
+            result.textContent = payload.result ?? "Completed successfully.";
+          } catch (error) {
+            result.textContent = error.message;
+            result.classList.add("error");
+          } finally {
+            runButton.disabled = tool.enabled === false;
+            runButton.textContent = tool.enabled === false
+              ? "Tool disabled"
+              : "Run tool";
+          }
+        });
+
+        const toggleLabel = document.createElement("label");
+        toggleLabel.className = "tool-enable-toggle";
+
+        const toggle = document.createElement("input");
+        toggle.type = "checkbox";
+        toggle.checked = tool.enabled !== false;
+        toggle.setAttribute("aria-label", `Enable ${tool.name}`);
+
+        const toggleText = document.createElement("span");
+        toggleText.textContent = toggle.checked ? "Enabled" : "Disabled";
+
+        toggle.addEventListener("change", async () => {
+          toggle.disabled = true;
+          try {
+            const response = await fetch(
+              `/api/tools/${encodeURIComponent(tool.name)}/enabled`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: toggle.checked })
+              }
+            );
+
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.detail || "Could not update tool");
+
+            tool.enabled = payload.enabled;
+            await refreshTools();
+            await refreshComposerTools();
+          } catch (error) {
+            toggle.checked = !toggle.checked;
+            toggleText.textContent = toggle.checked ? "Enabled" : "Disabled";
+            result.hidden = false;
+            result.textContent = error.message;
+            result.classList.add("error");
+          } finally {
+            toggle.disabled = false;
+          }
+        });
+
+        toggleLabel.append(toggle, toggleText);
+        runButton.disabled = tool.enabled === false;
+        runButton.textContent = tool.enabled === false ? "Tool disabled" : "Run tool";
+        card.classList.toggle("tool-disabled", tool.enabled === false);
+
+        const schemaDetails = document.createElement("details");
+        const schemaLabel = document.createElement("summary");
+        schemaLabel.textContent = "Parameter schema";
+        const schema = document.createElement("pre");
+        schema.textContent = JSON.stringify(tool.parameters || {}, null, 2);
+        schemaDetails.append(schemaLabel, schema);
+        card.append(header, description, toggleLabel, parameterArea, schemaDetails, runButton, result);
+        section.appendChild(card);
       });
-
-      toggleLabel.append(toggle, toggleText);
-      runButton.disabled = tool.enabled === false;
-      runButton.textContent = tool.enabled === false ? "Tool disabled" : "Run tool";
-      card.classList.toggle("tool-disabled", tool.enabled === false);
-
-      card.append(header, description, toggleLabel, parameterArea, runButton, result);
-      list.appendChild(card);
-    });
+    }
   } catch (error) {
     summary.textContent = "Could not load tools: " + error.message;
     list.textContent = "Check that the application and MCP server are running.";
@@ -2471,7 +2425,7 @@ async function showTools() {
   chatNav.classList.remove("active");
   usageNav.classList.remove("active");
   toolsNav.classList.add("active");
-  breadcrumb.innerHTML = "Workspace <span>/</span> Tools & MCP";
+  breadcrumb.innerHTML = "Tools";
 
   await refreshTools();
 }
@@ -2479,14 +2433,14 @@ async function showTools() {
 
 
 let currentFilesPath = "";
-let currentFilesLocation = "workspace";
+
 
 async function loadFiles(path = currentFilesPath) {
   const list = document.getElementById("files-list");
   const breadcrumb = document.getElementById("files-breadcrumb");
   const upButton = document.getElementById("files-up");
   const preview = document.getElementById("file-preview");
-  const endpoint = currentFilesLocation === "documents" ? "/api/documents" : "/api/files";
+  const endpoint = "/api/documents";
 
   list.textContent = "Loading...";
   preview.innerHTML = '<div class="file-preview-empty">Select a file to preview its contents.</div>';
@@ -2497,7 +2451,7 @@ async function loadFiles(path = currentFilesPath) {
     if (!response.ok) throw new Error(data.detail || "Could not load files");
 
     currentFilesPath = data.path;
-    const rootLabel = currentFilesLocation === "documents" ? "My AI Agent Documents" : "Workspace";
+    const rootLabel = "My AI Agent Documents";
     breadcrumb.textContent = rootLabel + (data.path ? " / " + data.path : "");
     upButton.disabled = !data.path;
     upButton.onclick = () => loadFiles(data.parent || "");
@@ -2549,7 +2503,7 @@ function formatFileSize(bytes) {
 
 async function previewFile(path) {
   const preview = document.getElementById("file-preview");
-  const endpoint = currentFilesLocation === "documents" ? "/api/documents/content" : "/api/files/content";
+  const endpoint = "/api/documents/content";
   preview.textContent = "Loading preview...";
 
   try {
@@ -2597,18 +2551,10 @@ async function showFiles() {
   toolsNav.classList.remove("active");
   filesNav.classList.add("active");
 
-  breadcrumb.innerHTML = "Workspace <span>/</span> Files";
+  breadcrumb.innerHTML = "Files";
 
   await loadFiles("");
 }
-
-document.getElementById("files-location").addEventListener("change", event => {
-  currentFilesLocation = event.target.value;
-  currentFilesPath = "";
-  document.getElementById("file-preview").innerHTML =
-    '<div class="file-preview-empty">Select a file to preview its contents.</div>';
-  loadFiles("");
-});
 
 document.getElementById("refresh-files").addEventListener("click", () => {
   loadFiles();

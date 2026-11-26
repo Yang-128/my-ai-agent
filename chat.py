@@ -450,7 +450,9 @@ def decide_extensions(request: ExtensionDecisionRequest):
 
     try:
         model = request.model or get_provider_model(request.provider)
-        available = get_all_tool_definitions()
+        settings = get_tool_settings()
+        available = [tool for tool in get_all_tool_definitions()
+                     if settings.get(tool["function"]["name"], True)]
         conversation = (
             get_conversation(request.conversation_id)
             if request.conversation_id else None
@@ -544,13 +546,7 @@ def chat(request: ChatRequest):
             all_tool_definitions = get_all_tool_definitions()
             available_tools = [
                 tool for tool in all_tool_definitions
-                if (
-                    tool_settings.get(tool["function"]["name"], True)
-                    or (
-                        requested_tools is not None
-                        and tool["function"]["name"] in requested_tools
-                    )
-                )
+                if tool_settings.get(tool["function"]["name"], True)
                 and (
                     requested_tools is None
                     or tool["function"]["name"] in requested_tools
@@ -914,6 +910,13 @@ def chat(request: ChatRequest):
                     result = None
                     break
 
+                if any(call.function.name not in enabled_names for call in tool_calls):
+                    messages.append(result.model_dump(exclude_none=True))
+                    for call in tool_calls:
+                        messages.append({"role": "tool", "tool_call_id": call.id,
+                                         "content": "Batch skipped. Use only the tools enabled for this request."})
+                    continue
+
                 calendar_actions = {
                     "mcp_update_calendar_event": "update",
                     "mcp_delete_calendar_event": "delete",
@@ -1026,6 +1029,11 @@ def chat(request: ChatRequest):
                             # Load the original event before preparing an update.
                             # This keeps unchanged fields populated in the approval editor.
                             for arguments, action in actions:
+                                if action == "delete":
+                                    details = execute_tool("mcp_get_calendar_event_details", {"event_id": arguments.get("event_id")})
+                                    if isinstance(details, str):
+                                        details = json.loads(details)
+                                    arguments["summary"] = details.get("summary") or "(Untitled event)"
                                 if action != "update":
                                     continue
 

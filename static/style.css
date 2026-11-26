@@ -592,7 +592,7 @@ button {
   max-width: 240px;
 }
 
-#provider-status {
+#composer-provider-status {
   display: inline-block;
   margin: 0 8px 10px;
   font-size: 12px;
@@ -1935,3 +1935,23 @@ button {
     padding-right: 7px;
   }
 }
+
+
+.capability-group {
+  align-self: start;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+.capability-group summary, #key-guide summary { cursor: pointer; padding: 6px; }
+.capability-group .tool-card { margin-top: 8px; }
+#model-discovery label, #key-guide { display: block; margin-top: 12px; }
+#model-discovery select { padding: 5px; }
+#catalog-results { max-height: 46vh; overflow-y: auto; }
+#catalog-results article { padding: 12px 0; border-top: 1px solid var(--border); }
+#catalog-results small { display: block; color: var(--muted); margin: 4px 0 8px; }
+#key-guide a { color: var(--accent); }
+
+.capability-group pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.tools-summary:empty { display: none; }

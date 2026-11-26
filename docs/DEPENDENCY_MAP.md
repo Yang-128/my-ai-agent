@@ -94,6 +94,12 @@
 
 - `calendar_approval`
 
+### `tests/test_capabilities.py`
+
+- `app`
+- `providers`
+- `storage`
+
 ### `tests/test_document_generation.py`
 
 - `mcp_client`
@@ -133,11 +139,14 @@
 
 ## Frontend CDN assets
 
+- `https://aistudio.google.com/apikey`
 - `https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js`
 - `https://cdn.jsdelivr.net/npm/marked/marked.min.js`
 - `https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js`
 - `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js`
 - `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css`
+- `https://console.groq.com/keys`
+- `https://openrouter.ai/settings/keys`
 
 ## Rust crate imports
 

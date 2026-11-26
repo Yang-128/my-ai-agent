@@ -720,14 +720,18 @@ def get_tool_settings():
     return {row["tool_name"]: bool(row["enabled"]) for row in rows}
 
 
-def set_tool_enabled(tool_name, enabled):
+def set_tools_enabled(tool_names, enabled):
     with connect() as db:
-        db.execute("""
+        db.executemany("""
             INSERT INTO tool_settings (tool_name, enabled, updated_at)
             VALUES (?, ?, ?)
             ON CONFLICT(tool_name) DO UPDATE SET
                 enabled = excluded.enabled,
                 updated_at = excluded.updated_at
-        """, (tool_name, int(bool(enabled)), now()))
+        """, [(name, int(enabled), now()) for name in tool_names])
 
     return bool(enabled)
+
+
+def set_tool_enabled(tool_name, enabled):
+    return set_tools_enabled([tool_name], enabled)

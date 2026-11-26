@@ -16,10 +16,12 @@ load_dotenv(ENV_FILE, override=True)
 
 REDIRECT_URI = "http://localhost:8000/api/google/callback"
 TASKS_WRITE_SCOPE = "https://www.googleapis.com/auth/tasks"
+GMAIL_READ_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
     TASKS_WRITE_SCOPE,
     "https://www.googleapis.com/auth/gmail.send",
+    GMAIL_READ_SCOPE,
 ]
 
 TOKEN_FILE = DATA_DIR / "google_calendar_token.json"
@@ -219,11 +221,17 @@ def get_google_credentials(*, require_tasks_write=False, account_id="default"):
     return credentials
 
 
-def get_gmail_service():
+def get_gmail_service(*, require_read=False):
+    credentials = get_google_credentials()
+    if require_read and not credentials.has_scopes([GMAIL_READ_SCOPE]):
+        raise RuntimeError(
+            "Gmail reading permission is missing. "
+            "Reconnect your Google account and grant read-only Gmail access."
+        )
     return build(
         "gmail",
         "v1",
-        credentials=get_google_credentials(),
+        credentials=credentials,
         cache_discovery=False,
     )
 
@@ -243,7 +251,11 @@ def google_gmail_status():
                 "error": "Gmail permission is missing. Reconnect your Google account.",
             }
 
-        return {"connected": True, "email": ""}
+        return {
+            "connected": True,
+            "email": "",
+            "read_enabled": credentials.has_scopes([GMAIL_READ_SCOPE]),
+        }
     except Exception as error:
         return {"connected": False, "error": str(error)}
 

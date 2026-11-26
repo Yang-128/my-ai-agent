@@ -12,28 +12,6 @@ let pendingImages = [];
 const MAX_IMAGES = 4;
 const MAX_IMAGE_SIZE = 6 * 1024 * 1024;
 
-const composerTools = document.querySelector(".composer-tools");
-composerTools.querySelector("span")?.remove();
-const toolPickerButton = document.createElement("button");
-toolPickerButton.type = "button";
-toolPickerButton.className = "tool-picker-button";
-toolPickerButton.textContent = "Tools ▾";
-
-const toolPickerMenu = document.createElement("div");
-toolPickerMenu.className = "tool-picker-menu";
-toolPickerMenu.hidden = true;
-toolPickerMenu.innerHTML = `
-  <div class="tool-picker-heading">
-    <strong>Tools</strong>
-    <button type="button" class="tool-picker-close">×</button>
-  </div>
-  <div class="tool-picker-list">Loading...</div>
-`;
-
-composerTools.append(toolPickerButton, toolPickerMenu);
-
-const selectedTools = new Set();
-
 function renderImagePreview() {
   imagePreview.querySelectorAll("img").forEach(image => {
     if (image.src.startsWith("blob:")) URL.revokeObjectURL(image.src);
@@ -99,24 +77,6 @@ function fileToDataUrl(file) {
 }
 
 
-toolPickerButton.addEventListener("click", async () => {
-  toolPickerMenu.hidden = !toolPickerMenu.hidden;
-  if (!toolPickerMenu.hidden && !toolPickerMenu.querySelector("input")) {
-    await refreshComposerTools();
-  }
-});
-
-toolPickerMenu.querySelector(".tool-picker-close").addEventListener("click", () => {
-  toolPickerMenu.hidden = true;
-
-});
-
-document.addEventListener("pointerdown", event => {
-  if (!toolPickerMenu.hidden && !toolPickerMenu.contains(event.target)) {
-    toolPickerMenu.hidden = true;
-  }
-}, true);
-
 function capability(name) {
   const id = name.replace(/^mcp_/, "");
   if (id.includes("calendar")) return "Calendar actions";
@@ -137,47 +97,6 @@ function groupTools(tools) {
     groups.get(name).push(tool);
   }
   return [...groups].sort(([a], [b]) => a.localeCompare(b));
-}
-
-function updateToolPickerLabel() {
-  const count = new Set([...selectedTools].map(capability)).size;
-  toolPickerButton.textContent = count ? `Tools (${count}) ▾` : "Tools (off) ▾";
-}
-
-async function refreshComposerTools() {
-  const list = toolPickerMenu.querySelector(".tool-picker-list");
-  try {
-    const response = await fetch("/api/tools");
-    if (!response.ok) throw new Error("Could not load tools");
-    const tools = await response.json();
-    selectedTools.clear();
-    list.replaceChildren();
-    for (const tool of tools) if (tool.enabled) selectedTools.add(tool.name);
-    for (const [name, members] of groupTools(tools)) {
-      const label = document.createElement("label");
-      label.className = "tool-picker-option";
-      const box = document.createElement("input");
-      box.type = "checkbox";
-      const available = members.filter(tool => tool.enabled);
-      const count = members.filter(tool => selectedTools.has(tool.name)).length;
-      box.checked = available.length > 0 && count === available.length;
-      box.indeterminate = count > 0 && count < available.length;
-      box.disabled = !available.length;
-      label.append(box, name);
-      list.append(label);
-      box.addEventListener("change", () => {
-        for (const tool of available) {
-          if (box.checked) selectedTools.add(tool.name);
-          else selectedTools.delete(tool.name);
-        }
-        updateToolPickerLabel();
-      });
-    }
-    if (!tools.length) list.textContent = "No tools available.";
-    updateToolPickerLabel();
-  } catch (error) {
-    list.textContent = error.message;
-  }
 }
 
 let currentConversationId = null;
@@ -212,9 +131,12 @@ function openModelDiscovery() {
     link.closest("li").hidden = link.dataset.provider !== selectedProvider;
   }
   const keyForm = document.getElementById("external-key-form");
-  keyForm.hidden = !providerConfigs[selectedProvider]?.setup_url;
+  keyForm.hidden = !providerConfigs[selectedProvider];
   keyForm.reset();
-  document.getElementById("external-key-status").textContent = "";
+  document.getElementById("external-key-status").textContent =
+    credentialLabel(providerConfigs[selectedProvider]);
+  document.getElementById("remove-provider-key").hidden =
+    !providerConfigs[selectedProvider]?.can_remove_key;
   modelDialog.showModal();
   checkCatalog(true);
 }
@@ -229,12 +151,18 @@ document.getElementById("external-key-form").addEventListener("submit", async ev
   try {
     const response = await fetch("/api/provider-connection/" + encodeURIComponent(provider), {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({key: field.value.trim()})
+      body: JSON.stringify({
+        key: field.value.trim(),
+        allow_unverified: document.getElementById("allow-unverified-key").checked
+      })
     });
     if (!response.ok) throw new Error((await response.json()).detail);
+    const connection = await response.json();
+    Object.assign(providerConfigs[provider], connection);
     if (selectedProvider !== provider) return;
-    providerConfigs[provider].configured = true;
-    status.textContent = "Key saved for this server session. The provider checks it on your first request.";
+    status.textContent = credentialLabel(connection);
+    document.getElementById("remove-provider-key").hidden =
+      !connection.can_remove_key;
     await checkCatalog(true);
   } catch (error) {
     status.textContent = error.message;
@@ -243,6 +171,45 @@ document.getElementById("external-key-form").addEventListener("submit", async ev
     button.disabled = false;
   }
 });
+function credentialLabel(config) {
+  if (!config?.configured) return "No API key configured.";
+  const source = config.credential_source === "session"
+    ? "Server session"
+    : "Environment configuration";
+  return source + (config.credential_state === "verified"
+    ? " · Authentication verified"
+    : " · Key configured, authentication unverified");
+}
+
+document.getElementById("remove-provider-key").addEventListener("click", async event => {
+  const button = event.currentTarget;
+  const provider = selectedProvider;
+  const status = document.getElementById("external-key-status");
+
+  button.disabled = true;
+  try {
+    const response = await fetch(
+      "/api/provider-connection/" + encodeURIComponent(provider),
+      {method: "DELETE"}
+    );
+
+    const connection = await response.json();
+    if (!response.ok) throw new Error(connection.detail);
+
+    Object.assign(providerConfigs[provider], connection);
+
+    if (selectedProvider !== provider) return;
+
+    status.textContent = credentialLabel(connection);
+    button.hidden = !connection.can_remove_key;
+    await checkCatalog(true);
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
 modelDialog.addEventListener("close", () => document.getElementById("external-key-form").reset());
 modelButton.addEventListener("click", openModelDiscovery);
 
@@ -499,7 +466,7 @@ async function refreshProviderStatus() {
     const providers = await response.json();
 
     providerConfigs = {};
-    document.getElementById("key-status").textContent = providers.map(p => p.name + (p.configured ? " · key configured" : " · key missing")).join(" | ");
+    document.getElementById("key-status").textContent = providers.map(p => p.name + " · " + credentialLabel(p)).join(" | ");
     providers.forEach(provider => {
       providerConfigs[provider.id] = provider;
     });
@@ -1670,115 +1637,51 @@ async function sendMessage(text) {
       throw new Error("Please select a model before sending a message.");
     }
 
-    let toolsForThisMessage = Array.from(selectedTools);
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation_id: currentConversationId,
+        message: userMessage,
+        images: imageData,
+        provider: selectedProvider,
+        model: selectedModel
+      })
+    });
 
-    try {
-      if (!userMessage && imageData.length) {
-        throw new Error("Skip extension assessment for image-only messages.");
-      }
-      const decisionResponse = await fetch("/api/ai-decide-extensions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversation_id: currentConversationId,
-          message: userMessage || "Please analyze the attached image(s).",
-          provider: selectedProvider,
-          model: selectedModel
-        })
-      });
-
-      if (decisionResponse.ok) {
-        const decision = await decisionResponse.json();
-
-        if (Array.isArray(decision.required_extensions)) {
-          toolsForThisMessage = decision.needs_extensions
-            ? toolsForThisMessage.filter(name => decision.required_extensions.includes(name))
-            : [];
-        }
-      } else {
-        console.warn("Extension assessment unavailable; using manual tool selection.");
-      }
-    } catch (assessmentError) {
-      console.warn("Extension assessment failed; using manual tool selection.", assessmentError);
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.detail || "The request failed");
     }
 
-    let retryWithMissingTool = true;
+    if (!response.body) {
+      throw new Error("Streaming is not supported by this browser");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
     let responseRaw = "";
-    let isRetry = false;
 
     while (true) {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversation_id: currentConversationId,
-          message: userMessage,
-          images: imageData,
-          provider: selectedProvider,
-          model: selectedModel,
-          selected_tools: toolsForThisMessage,
-          retry_without_saving: isRetry
-        })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || "The request failed");
-      }
-      if (!response.body) {
-        throw new Error("Streaming is not supported by this browser");
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      responseRaw = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        responseRaw += decoder.decode(value, { stream: true });
-      }
-      responseRaw += decoder.decode();
-
-      const missingToolMatch = responseRaw.match(
-        /attempted to call tool ['"]([^'"]+)['"] which was not in request\.tools/i
-      );
-
-      if (missingToolMatch && retryWithMissingTool && selectedTools.has(missingToolMatch[1])) {
-        const missingTool = missingToolMatch[1];
-        const approved = window.confirm(
-          `The model tried to use an extension that was not included: ${capability(missingTool)}\n\n` +
-          "Add this extension to the current request and retry?"
-        );
-
-        if (approved) {
-          const toolsResponse = await fetch("/api/tools");
-          if (!toolsResponse.ok) {
-            throw new Error("Could not load available extensions.");
-          }
-          const availableTools = await toolsResponse.json();
-          if (!availableTools.some(tool => tool.name === missingTool && tool.enabled)) {
-            throw new Error(`The requested extension ${missingTool} is not available.`);
-          }
-
-          toolsForThisMessage = [...new Set([...toolsForThisMessage, missingTool])];
-          retryWithMissingTool = false;
-          isRetry = true;
-          responseMessage.dataset.raw = "";
-          responseMessage.classList.add("loading");
-          responseMessage.textContent = "Retrying with the missing extension…";
-          continue;
-        }
-      }
-
-      const followReply = conversationPage.scrollHeight - conversationPage.clientHeight - conversationPage.scrollTop <= 8;
-      renderMessageContent(responseMessage, responseRaw);
-      if (!responseMessage.textContent.trim()) {
-        responseMessage.textContent = "The model returned an empty response.";
-      }
-      if (followReply) scrollToBottom();
-      break;
+      const { value, done } = await reader.read();
+      if (done) break;
+      responseRaw += decoder.decode(value, { stream: true });
     }
+
+    responseRaw += decoder.decode();
+    const followReply =
+      conversationPage.scrollHeight -
+      conversationPage.clientHeight -
+      conversationPage.scrollTop <= 8;
+
+    renderMessageContent(responseMessage, responseRaw);
+
+    if (!responseMessage.textContent.trim()) {
+      responseMessage.textContent =
+        "The model returned an empty response.";
+    }
+
+    if (followReply) scrollToBottom();
 
     await refreshHistory();
 
@@ -1810,7 +1713,6 @@ function useSuggestion(text) {
 async function initialize() {
   try {
     await refreshProviderStatus();
-    await refreshComposerTools();
 
 
 
@@ -2266,37 +2168,19 @@ async function refreshTools() {
       const section = document.createElement("details");
       section.className = "capability-group";
       const heading = document.createElement("summary");
-      const enabledCount = members.filter(tool => tool.enabled).length;
-      heading.textContent = `${group} · ${enabledCount}/${members.length} enabled`;
-      const groupToggle = document.createElement("button");
-      groupToggle.className = "refresh-usage";
-      const enable = enabledCount !== members.length;
-      groupToggle.textContent = enable ? "Enable all" : "Disable all";
-      groupToggle.setAttribute("aria-label", groupToggle.textContent + " in " + group);
-      groupToggle.onclick = async () => {
-        groupToggle.disabled = true;
-        try {
-          const response = await fetch("/api/tool-settings/batch", {
-            method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({names: members.map(tool => tool.name), enabled: enable})
-          });
-          if (!response.ok) throw new Error("Could not save these settings. Refresh and try again.");
-          await refreshTools();
-          await refreshComposerTools();
-        } catch (error) { summary.textContent = error.message; groupToggle.disabled = false; }
-      };
+      heading.textContent = `${group} · ${members.length} available`;
       const description = document.createElement("p");
       description.textContent = {
         "Calendar actions": "Find events and propose calendar changes.",
         "Tasks": "Find, create, update, and complete Google Tasks.",
-        "Email": "Prepare Gmail messages for approval.",
+        "Email": "Search and read Gmail, or prepare messages for approval.",
         "Documents & files": "Find and read files, or create a document.",
         "Memory": "Search and reopen past conversations.",
         "System": "Check local time and system information.",
         "Web search": "Search the web and read a page.",
         "Other tools": "Additional tools available to this agent."
       }[group];
-      section.append(heading, description, groupToggle);
+      section.append(heading, description);
       list.append(section);
       members.forEach(tool => {
         const card = document.createElement("details");
@@ -2433,57 +2317,10 @@ async function refreshTools() {
             result.textContent = error.message;
             result.classList.add("error");
           } finally {
-            runButton.disabled = tool.enabled === false;
-            runButton.textContent = tool.enabled === false
-              ? "Tool disabled"
-              : "Run tool";
+            runButton.disabled = false;
+            runButton.textContent = "Run tool";
           }
         });
-
-        const toggleLabel = document.createElement("label");
-        toggleLabel.className = "tool-enable-toggle";
-
-        const toggle = document.createElement("input");
-        toggle.type = "checkbox";
-        toggle.checked = tool.enabled !== false;
-        toggle.setAttribute("aria-label", `Enable ${tool.name}`);
-
-        const toggleText = document.createElement("span");
-        toggleText.textContent = toggle.checked ? "Enabled" : "Disabled";
-
-        toggle.addEventListener("change", async () => {
-          toggle.disabled = true;
-          try {
-            const response = await fetch(
-              `/api/tools/${encodeURIComponent(tool.name)}/enabled`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ enabled: toggle.checked })
-              }
-            );
-
-            const payload = await response.json();
-            if (!response.ok) throw new Error(payload.detail || "Could not update tool");
-
-            tool.enabled = payload.enabled;
-            await refreshTools();
-            await refreshComposerTools();
-          } catch (error) {
-            toggle.checked = !toggle.checked;
-            toggleText.textContent = toggle.checked ? "Enabled" : "Disabled";
-            result.hidden = false;
-            result.textContent = error.message;
-            result.classList.add("error");
-          } finally {
-            toggle.disabled = false;
-          }
-        });
-
-        toggleLabel.append(toggle, toggleText);
-        runButton.disabled = tool.enabled === false;
-        runButton.textContent = tool.enabled === false ? "Tool disabled" : "Run tool";
-        card.classList.toggle("tool-disabled", tool.enabled === false);
 
         const schemaDetails = document.createElement("details");
         const schemaLabel = document.createElement("summary");
@@ -2491,7 +2328,7 @@ async function refreshTools() {
         const schema = document.createElement("pre");
         schema.textContent = JSON.stringify(tool.parameters || {}, null, 2);
         schemaDetails.append(schemaLabel, schema);
-        card.append(header, description, toggleLabel, parameterArea, schemaDetails, runButton, result);
+        card.append(header, description, parameterArea, schemaDetails, runButton, result);
         section.appendChild(card);
       });
     }

@@ -17,11 +17,13 @@ from storage import (
     get_daily_usage,
     get_turn_usage,
     record_usage,
-    get_tool_settings,
-    set_tool_enabled, set_tools_enabled
 )
 from provider_ranking import ranked_providers
-from providers import SESSION_PROVIDER_KEYS, provider_key, EXTERNAL_CONNECTIONS, FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
+from provider_credentials import (
+    validate_provider_key,
+    CredentialValidationError,
+)
+from providers import SESSION_PROVIDER_KEYS, SESSION_PROVIDER_VALIDATION, credential_status, provider_key, EXTERNAL_CONNECTIONS, FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
 from calendar_approval import (
     get_pending_calendar_event, discard_pending_calendar_event,
@@ -346,22 +348,67 @@ def check_free_providers():
         raise HTTPException(502, "The public provider directory is unavailable. Try again.") from error
 
 
-@app.post("/api/provider-connection/{provider}", status_code=204)
-def connect_provider(provider: str, request: Request, body: dict):
+
+def require_local_provider_request(request):
     from urllib.parse import urlsplit
 
     origin = request.headers.get("origin")
-    if (not request.client or request.client.host not in {"127.0.0.1", "::1"}
-            or request.url.hostname not in {"127.0.0.1", "::1", "localhost"}
-            or origin is None or origin != f"{request.url.scheme}://{request.url.netloc}"
-            or urlsplit(origin).hostname != request.url.hostname):
-        raise HTTPException(403, "Open My AI Agent directly on this computer to enter a provider key.")
-    if provider not in EXTERNAL_CONNECTIONS:
-        raise HTTPException(404, "This provider needs a compatible API connection first.")
+
+    if (
+        not request.client
+        or request.client.host not in {"127.0.0.1", "::1"}
+        or request.url.hostname not in {
+            "127.0.0.1", "::1", "localhost"
+        }
+        or origin is None
+        or origin != f"{request.url.scheme}://{request.url.netloc}"
+        or urlsplit(origin).hostname != request.url.hostname
+    ):
+        raise HTTPException(
+            403,
+            "Open My AI Agent directly on this computer "
+            "to manage API keys.",
+        )
+
+
+@app.post("/api/provider-connection/{provider}")
+def connect_provider(provider: str, request: Request, body: dict):
+    require_local_provider_request(request)
+
+    if provider not in PROVIDERS:
+        raise HTTPException(404, "Unsupported provider.")
+
     key = body.get("key")
-    if not isinstance(key, str) or not 1 <= len(key) <= 4096 or not key.isascii() or not key.isprintable() or any(c.isspace() for c in key):
-        raise HTTPException(422, "Enter a valid API key.")
+
+    try:
+        state = validate_provider_key(
+            provider,
+            key,
+            allow_unverified=body.get("allow_unverified") is True,
+        )
+    except CredentialValidationError as error:
+        raise HTTPException(
+            error.status_code, str(error)
+        ) from None
+
+    # Do not replace existing credentials before validation succeeds.
     SESSION_PROVIDER_KEYS[provider] = key
+    SESSION_PROVIDER_VALIDATION[provider] = state
+
+    return credential_status(provider)
+
+
+@app.delete("/api/provider-connection/{provider}")
+def disconnect_provider(provider: str, request: Request):
+    require_local_provider_request(request)
+
+    if provider not in PROVIDERS:
+        raise HTTPException(404, "Unsupported provider.")
+
+    SESSION_PROVIDER_KEYS.pop(provider, None)
+    SESSION_PROVIDER_VALIDATION.pop(provider, None)
+
+    return credential_status(provider)
 
 
 @app.get("/api/providers")
@@ -370,7 +417,7 @@ def provider_status():
         {
             "id": provider_id,
             "name": config["name"],
-            "configured": bool(provider_key(provider_id)),
+            **credential_status(provider_id),
             "default_model": config["default_model"],
             "display_model": config.get(
                 "display_model", config["default_model"]
@@ -386,51 +433,18 @@ def provider_status():
 @app.get("/api/tools")
 def tools_status():
     definitions = get_all_tool_definitions()
-    settings = get_tool_settings()
     return [
         {
             "name": item["function"]["name"],
             "description": item["function"].get("description", ""),
             "parameters": item["function"].get("parameters", {}),
             "source": "MCP" if item["function"]["name"].startswith("mcp_") else "Built-in",
-            "enabled": settings.get(item["function"]["name"], True),
+            "enabled": True,
         }
         for item in definitions
     ]
 
 
-
-
-@app.post("/api/tool-settings/batch")
-def update_tool_settings(body: dict):
-    names, enabled = body.get("names"), body.get("enabled")
-    if not isinstance(enabled, bool) or not isinstance(names, list) or not names or not all(isinstance(n, str) for n in names):
-        raise HTTPException(422, "Provide tool names and an enabled setting.")
-    available = {item["function"]["name"] for item in get_all_tool_definitions()}
-    if set(names) - available:
-        raise HTTPException(404, "One or more tools are unavailable. Refresh Tools.")
-    set_tools_enabled(set(names), enabled)
-    return {"enabled": enabled}
-
-
-@app.post("/api/tools/{tool_name}/enabled")
-def update_tool_enabled(tool_name: str, body: dict):
-    available = {
-        item["function"]["name"]
-        for item in get_all_tool_definitions()
-    }
-    if tool_name not in available:
-        raise HTTPException(status_code=404, detail="Tool not found")
-
-    enabled = body.get("enabled")
-    if not isinstance(enabled, bool):
-        raise HTTPException(
-            status_code=422,
-            detail="'enabled' must be true or false"
-        )
-
-    set_tool_enabled(tool_name, enabled)
-    return {"name": tool_name, "enabled": enabled}
 
 
 @app.get("/api/tools/status")
@@ -460,8 +474,6 @@ def run_tool(tool_name: str, arguments: dict):
     }
     if tool_name not in available:
         raise HTTPException(status_code=404, detail="Tool not found")
-    if not get_tool_settings().get(tool_name, True):
-        raise HTTPException(status_code=403, detail="Tool is disabled")
     try:
         return {"success": True, "result": str(execute_tool(tool_name, arguments))}
     except Exception as error:
@@ -476,7 +488,7 @@ def daily_usage():
     }
 
 def refresh_openrouter_usage():
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = provider_key("openrouter")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY is missing")
 

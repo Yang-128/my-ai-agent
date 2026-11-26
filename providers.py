@@ -99,6 +99,29 @@ for provider_id, (name, key, endpoint, guide) in EXTERNAL_CONNECTIONS.items():
 
 
 SESSION_PROVIDER_KEYS = {}
+SESSION_PROVIDER_VALIDATION = {}
+
+
+def credential_status(provider):
+    if provider in SESSION_PROVIDER_KEYS:
+        return {
+            "configured": True,
+            "credential_state": SESSION_PROVIDER_VALIDATION.get(
+                provider, "unverified"
+            ),
+            "credential_source": "session",
+            "can_remove_key": True,
+        }
+
+    configured = bool(
+        os.getenv(PROVIDERS[provider]["api_key"], "").strip()
+    )
+    return {
+        "configured": configured,
+        "credential_state": "unverified" if configured else "missing",
+        "credential_source": "environment" if configured else "none",
+        "can_remove_key": False,
+    }
 
 
 def provider_key(provider):
@@ -244,7 +267,7 @@ def discover_free_models(provider="openrouter"):
         models = free_chat_models(public_catalog("https://openrouter.ai/api/v1/models").json()["data"])
     else:
         ids = free_plan_ids(provider, public_catalog(FREE_TIER_PAGES[provider]).text)
-        available = {m["id"]: m for m in get_available_models(provider, strict=True)} if os.getenv(PROVIDERS[provider]["api_key"]) else None
+        available = {m["id"]: m for m in get_available_models(provider, strict=True)} if provider_key(provider) else None
         models = []
         for model_id in ids:
             if available is not None and model_id not in available:

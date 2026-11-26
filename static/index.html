@@ -107,7 +107,7 @@
       <div class="tools-heading">
         <div>
           <h1>Tools</h1>
-          <p>Choose which capabilities your agent can use.</p>
+          <p>Tools are automatically selected by your agent when needed.</p>
         </div>
         <button class="refresh-usage" id="refresh-tools">↻ Refresh tools</button>
       </div>
@@ -213,7 +213,17 @@
           <p>Save the file, restart the server, and refresh this page. The connection status updates when the app reloads.</p>
           <form id="external-key-form" hidden>
             <label>API key <input id="external-key" type="password" autocomplete="off" required></label>
-            <button class="refresh-usage" type="submit">Use key until server restarts</button>
+            <label>
+              <input id="allow-unverified-key" type="checkbox">
+              Allow an unverified session key only if automatic validation is unsupported.
+            </label>
+            <button class="refresh-usage" type="submit">
+              Validate and connect
+            </button>
+            <button class="refresh-usage" id="remove-provider-key" type="button" hidden>
+              Remove session key
+            </button>
+            <p>Keys entered here are held in server memory until restart. Existing .env keys remain unchanged.</p>
             <p id="external-key-status" role="status"></p>
           </form>
           <p id="key-status" role="status"></p>

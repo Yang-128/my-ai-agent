@@ -26,32 +26,32 @@
 
 ### Frontend behavior — `static/app.js`
 
-- **L1772** Page navigation: `async function showUsage() {`
-- **L1787** Return navigation: `function showChat() {`
-- **L1802** Reset countdown renderer: `function updateResetCountdowns() {`
-- **L1846** Usage data loading and rendering: `async function refreshUsage() {`
-- **L1855** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
-- **L1864** Usage API request: `const response = await fetch("/api/usage");`
-- **L1916** Daily quota status: `function isDailyLimitReached(item) {`
-- **L1929** Quota availability check: `function hasKnownDailyLimit(item) {`
-- **L2037** Quota formatting: `function quotaText(used, limit) {`
-- **L2152** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
-- **L2176** Refresh event: `.addEventListener("click", refreshUsage);`
+- **L1775** Page navigation: `async function showUsage() {`
+- **L1790** Return navigation: `function showChat() {`
+- **L1805** Reset countdown renderer: `function updateResetCountdowns() {`
+- **L1849** Usage data loading and rendering: `async function refreshUsage() {`
+- **L1858** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
+- **L1867** Usage API request: `const response = await fetch("/api/usage");`
+- **L1919** Daily quota status: `function isDailyLimitReached(item) {`
+- **L1932** Quota availability check: `function hasKnownDailyLimit(item) {`
+- **L2040** Quota formatting: `function quotaText(used, limit) {`
+- **L2155** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
+- **L2179** Refresh event: `.addEventListener("click", refreshUsage);`
 
 ### Backend API and refresh — `app.py`
 
-- **L439** Usage route: `@app.get("/api/usage")`
-- **L440** Usage API handler: `def daily_usage():`
-- **L442** Storage interaction: `"daily": get_daily_usage(),`
-- **L443** Storage interaction: `"turns": get_turn_usage()`
-- **L446** OpenRouter quota lookup: `def refresh_openrouter_usage():`
-- **L459** Usage route: `@app.post("/api/usage/refresh")`
-- **L460** Provider refresh handler: `def refresh_usage():`
-- **L472** Storage interaction: `record_usage(`
-- **L496** Storage interaction: `record_usage(`
-- **L513** Storage interaction: `"usage": get_daily_usage(),`
-- **L514** Storage interaction: `"turns": get_turn_usage()`
-- **L518** Provider header parser: `def _int_header(headers, name):`
+- **L450** Usage route: `@app.get("/api/usage")`
+- **L451** Usage API handler: `def daily_usage():`
+- **L453** Storage interaction: `"daily": get_daily_usage(),`
+- **L454** Storage interaction: `"turns": get_turn_usage()`
+- **L457** OpenRouter quota lookup: `def refresh_openrouter_usage():`
+- **L470** Usage route: `@app.post("/api/usage/refresh")`
+- **L471** Provider refresh handler: `def refresh_usage():`
+- **L483** Storage interaction: `record_usage(`
+- **L507** Storage interaction: `record_usage(`
+- **L524** Storage interaction: `"usage": get_daily_usage(),`
+- **L525** Storage interaction: `"turns": get_turn_usage()`
+- **L529** Provider header parser: `def _int_header(headers, name):`
 
 ### Usage persistence and aggregation — `storage.py`
 

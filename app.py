@@ -20,7 +20,7 @@ from storage import (
     get_tool_settings,
     set_tool_enabled, set_tools_enabled
 )
-from providers import discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
+from providers import FREE_TIER_PAGES, discover_providers, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
 from calendar_approval import (
     get_pending_calendar_event, discard_pending_calendar_event,
@@ -326,12 +326,23 @@ def conversation_detail(conversation_id: str):
 
 
 @app.get("/api/free-models")
-def check_free_models():
+def check_free_models(provider: str = "openrouter"):
+    if provider not in PROVIDERS:
+        raise HTTPException(422, "Unknown provider.")
     try:
-        models = discover_free_models()
-    except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
-        raise HTTPException(502, "Could not check OpenRouter’s catalog. Try again.") from error
-    return {"models": models, "configured": bool(os.getenv("OPENROUTER_API_KEY", "").strip())}
+        models = discover_free_models(provider)
+    except Exception as error:
+        raise HTTPException(502, f"Could not verify the free catalog for {PROVIDERS[provider]['name']}. Check the connection and API key, then retry.") from error
+    return {"provider": provider, "models": models, "source": FREE_TIER_PAGES[provider],
+            "configured": bool(os.getenv(PROVIDERS[provider]["api_key"], "").strip())}
+
+
+@app.get("/api/free-providers")
+def check_free_providers():
+    try:
+        return {"providers": discover_providers()}
+    except (httpx.HTTPError, ValueError, TypeError, KeyError) as error:
+        raise HTTPException(502, "The public provider directory is unavailable. Try again.") from error
 
 
 @app.get("/api/providers")

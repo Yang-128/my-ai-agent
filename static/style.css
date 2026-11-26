@@ -1956,7 +1956,7 @@ button {
 .capability-group pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .tools-summary:empty { display: none; }
 
-#model-discovery {
+#model-discovery, #provider-discovery {
   width: min(92vw, 560px);
   max-height: 85dvh;
   overflow: auto;
@@ -1968,4 +1968,6 @@ button {
 }
 #model-discovery header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 #model-discovery h2 { margin: 0; }
-#model-discovery::backdrop { background: rgb(0 0 0 / 60%); }
+#provider-discovery a { color: var(--accent); }
+#provider-discovery header { display: flex; justify-content: space-between; align-items: center; }
+#provider-discovery::backdrop, #model-discovery::backdrop { background: rgb(0 0 0 / 60%); }

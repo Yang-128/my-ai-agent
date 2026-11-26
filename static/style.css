@@ -1955,3 +1955,17 @@ button {
 
 .capability-group pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .tools-summary:empty { display: none; }
+
+#model-discovery {
+  width: min(92vw, 560px);
+  max-height: 85dvh;
+  overflow: auto;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+}
+#model-discovery header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#model-discovery h2 { margin: 0; }
+#model-discovery::backdrop { background: rgb(0 0 0 / 60%); }

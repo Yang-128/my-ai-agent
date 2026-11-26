@@ -19,24 +19,24 @@
 ### Page structure — `static/index.html`
 
 - **L82** Usage page: `<section class="usage-page" id="usage-page" style="display:none">`
-- **L109** Summary container: `<div class="usage-summary" id="usage-summary"></div>`
-- **L113** Provider status container: `<div class="provider-status-grid" id="provider-status"></div>`
-- **L118** Model rows container: `<div class="usage-model-grid" id="usage-rows"></div>`
-- **L122** Refresh control: `<button class="refresh-usage" id="refresh-usage">↻ Refresh usage</button>`
+- **L90** Summary container: `<div class="usage-summary" id="usage-summary"></div>`
+- **L94** Provider status container: `<div class="provider-status-grid" id="provider-status"></div>`
+- **L99** Model rows container: `<div class="usage-model-grid" id="usage-rows"></div>`
+- **L103** Refresh control: `<button class="refresh-usage" id="refresh-usage">↻ Refresh usage</button>`
 
 ### Frontend behavior — `static/app.js`
 
-- **L1755** Page navigation: `async function showUsage() {`
-- **L1770** Return navigation: `function showChat() {`
-- **L1785** Reset countdown renderer: `function updateResetCountdowns() {`
-- **L1829** Usage data loading and rendering: `async function refreshUsage() {`
-- **L1838** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
-- **L1847** Usage API request: `const response = await fetch("/api/usage");`
-- **L1899** Daily quota status: `function isDailyLimitReached(item) {`
-- **L1912** Quota availability check: `function hasKnownDailyLimit(item) {`
-- **L2020** Quota formatting: `function quotaText(used, limit) {`
-- **L2135** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
-- **L2159** Refresh event: `.addEventListener("click", refreshUsage);`
+- **L1772** Page navigation: `async function showUsage() {`
+- **L1787** Return navigation: `function showChat() {`
+- **L1802** Reset countdown renderer: `function updateResetCountdowns() {`
+- **L1846** Usage data loading and rendering: `async function refreshUsage() {`
+- **L1855** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
+- **L1864** Usage API request: `const response = await fetch("/api/usage");`
+- **L1916** Daily quota status: `function isDailyLimitReached(item) {`
+- **L1929** Quota availability check: `function hasKnownDailyLimit(item) {`
+- **L2037** Quota formatting: `function quotaText(used, limit) {`
+- **L2152** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
+- **L2176** Refresh event: `.addEventListener("click", refreshUsage);`
 
 ### Backend API and refresh — `app.py`
 

@@ -204,6 +204,15 @@ modelSearch.autocomplete = "off";
 
 const modelSelector = document.createElement("select");
 modelSelector.id = "model-selector";
+modelSelector.setAttribute("aria-label", "Chat model");
+const discoverOption = "__check_free_models__";
+const modelDialog = document.getElementById("model-discovery");
+
+function openModelDiscovery() {
+  modelDialog.showModal();
+  checkModels.click();
+}
+modelButton.addEventListener("click", openModelDiscovery);
 
 function getSelectedModelInfo() {
   const provider = providerConfigs[selectedProvider];
@@ -272,6 +281,7 @@ function renderDiscoveredModels() {
       providerStatus.textContent = "● API key configured";
       providerStatus.className = "provider-ready";
       renderDiscoveredModels();
+      modelDialog.close();
       document.querySelector('#mobile-navigation [data-page="chat"]').click();
     };
     row.append(title, info, button);
@@ -368,6 +378,7 @@ function populateModelSelector(filter = modelSearch.value) {
       ? provider.default_model
       : filtered[0]?.id || "";
 
+  modelSelector.add(new Option("Check for free models…", discoverOption));
   modelSelector.value = preferred;
   if (preferred) selectedModel = preferred;
   updateModelDisplay();
@@ -417,6 +428,12 @@ providerSelector.addEventListener("change", async () => {
 });
 
 modelSelector.addEventListener("change", () => {
+  if (modelSelector.value === discoverOption) {
+    modelSelector.value = [...modelSelector.options].some(option => option.value === selectedModel)
+      ? selectedModel : "";
+    openModelDiscovery();
+    return;
+  }
   selectedModel = modelSelector.value;
   updateModelDisplay();
 });

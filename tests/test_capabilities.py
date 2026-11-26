@@ -7,7 +7,7 @@ from fastapi import HTTPException
 
 import app
 import storage
-from providers import free_chat_models
+from providers import free_chat_models, free_plan_ids, rank_models
 
 
 class CapabilityTests(unittest.TestCase):
@@ -22,6 +22,20 @@ class CapabilityTests(unittest.TestCase):
         self.assertTrue(results[0]["capabilities"]["tools"])
         self.assertTrue(results[0]["capabilities"]["image"])
         self.assertEqual(results[0]["context_length"], 32000)
+
+    def test_gemini_requires_both_free_input_and_output(self):
+        section = "## Example\n*[`gemini-example`](/model)*\n* Free Tier\n* Input price\n* Free of charge\n* Output price\n* Free of charge\n"
+        paid = section.replace("gemini-example", "paid").replace("Output price\n* Free of charge", "Output price\n* Not available")
+        self.assertEqual(free_plan_ids("gemini", paid + section), ["gemini-example"])
+
+    def test_groq_uses_free_limits_table_and_excludes_audio(self):
+        page = "<table><tr><th>Free Plan Limits</th></tr></table><table><tr><td>chat</td></tr><tr><td>whisper-large</td></tr></table><table><tr><td>paid</td></tr></table>"
+        self.assertEqual(free_plan_ids("groq", page), ["chat"])
+
+    def test_practical_default_prefers_tools_over_context_size(self):
+        text = {"id": "large", "context_length": 200000, "capabilities": {"text": True}}
+        agent = {"id": "agent", "context_length": 32000, "capabilities": {"tools": True}}
+        self.assertEqual(rank_models([text, agent], "openrouter")[0]["id"], "agent")
 
     def test_document_navigation_preserves_dotted_folders(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(app, "DOCUMENTS_ROOT", Path(folder)):

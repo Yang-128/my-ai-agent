@@ -182,25 +182,23 @@ async function refreshComposerTools() {
 
 let currentConversationId = null;
 let busy = false;
-let selectedModel = "openai/gpt-oss-120b";
+let selectedModel = "";
+let automaticModel = true;
+const freeCatalogs = new Map();
+let catalogRequest = 0;
 let selectedProvider = "groq";
 let providerConfigs = {};
 
 const providerSelector = document.createElement("select");
 providerSelector.id = "provider-selector";
+providerSelector.setAttribute("aria-label", "Chat provider");
 providerSelector.innerHTML = `
   <option value="groq">Groq</option>
   <option value="openrouter">OpenRouter</option>
   <option value="gemini">Google Gemini</option>
+  <option value="__find__">Find new provider…</option>
 `;
 form.parentElement.insertBefore(providerSelector, form);
-
-const modelSearch = document.createElement("input");
-modelSearch.id = "model-search";
-modelSearch.type = "search";
-modelSearch.placeholder = "Search available models...";
-modelSearch.autocomplete = "off";
-// Model search field removed.
 
 const modelSelector = document.createElement("select");
 modelSelector.id = "model-selector";
@@ -209,14 +207,19 @@ const discoverOption = "__check_free_models__";
 const modelDialog = document.getElementById("model-discovery");
 
 function openModelDiscovery() {
+  document.getElementById("discovery-heading").textContent = (providerConfigs[selectedProvider]?.name || selectedProvider) + " free models";
+  for (const link of modelDialog.querySelectorAll("[data-provider]")) {
+    link.closest("li").hidden = link.dataset.provider !== selectedProvider;
+  }
   modelDialog.showModal();
-  checkModels.click();
+  checkCatalog(true);
 }
 modelButton.addEventListener("click", openModelDiscovery);
 
 function getSelectedModelInfo() {
   const provider = providerConfigs[selectedProvider];
-  return (provider?.models || []).find(model => model.id === selectedModel);
+  return (provider?.models || []).find(model => model.id === selectedModel) ||
+    freeCatalogs.get(selectedProvider)?.models.find(model => model.id === selectedModel);
 }
 
 const checkModels = document.getElementById("check-models");
@@ -225,7 +228,7 @@ const catalogResults = document.getElementById("catalog-results");
 const priority = document.getElementById("model-priority");
 let discoveredModels = [];
 let newModelIds = new Set();
-let routerConfigured = false;
+
 
 function renderDiscoveredModels() {
   catalogResults.replaceChildren();
@@ -234,7 +237,7 @@ function renderDiscoveredModels() {
     if (priority.value === "created") return model.created;
     return Number(model.capabilities[priority.value]);
   };
-  const sorted = [...discoveredModels].sort((a, b) =>
+  const sorted = priority.value === "practical" ? discoveredModels : [...discoveredModels].sort((a, b) =>
     score(b) - score(a) || b.created - a.created || a.id.localeCompare(b.id)
   );
   const current = getSelectedModelInfo();
@@ -247,7 +250,7 @@ function renderDiscoveredModels() {
   for (const model of sorted) {
     const row = document.createElement("article");
     const title = document.createElement("strong");
-    title.textContent = model.name + (newModelIds.has(model.id) ? " · New since last check" : "");
+    title.textContent = model.name + (model.id === discoveredModels[0]?.id ? " · Top practical pick" : "") + (newModelIds.has(model.id) ? " · New since last check" : "");
     const info = document.createElement("small");
     const facts = [];
     if (current && selectedModel !== model.id) {
@@ -263,21 +266,21 @@ function renderDiscoveredModels() {
     const button = document.createElement("button");
     button.className = "refresh-usage";
     button.type = "button";
-    const active = selectedProvider === "openrouter" && model.id === selectedModel;
-    button.textContent = active ? "Selected" : routerConfigured ? "Use in chat" : "Connect OpenRouter";
-    button.disabled = active && routerConfigured;
+    const active = model.id === selectedModel;
+    const configured = freeCatalogs.get(selectedProvider)?.configured;
+    button.textContent = configured ? (active ? "Selected" : "Use in chat") : "Connect " + providerConfigs[selectedProvider]?.name;
+    button.disabled = active && configured;
     button.onclick = () => {
-      if (!routerConfigured) {
+      if (!configured) {
         const guide = document.getElementById("key-guide");
         guide.open = true;
         guide.scrollIntoView({block: "center"});
-        guide.querySelector("a").focus({preventScroll: true});
+        guide.querySelector(`[data-provider="${selectedProvider}"]`).focus({preventScroll: true});
         return;
       }
-      providerConfigs.openrouter = {...providerConfigs.openrouter, name: "OpenRouter", configured: true, models: discoveredModels};
-      selectedProvider = providerSelector.value = "openrouter";
+      automaticModel = false;
       selectedModel = model.id;
-      updateProviderControls();
+      populateModelSelector();
       providerStatus.textContent = "● API key configured";
       providerStatus.className = "provider-ready";
       renderDiscoveredModels();
@@ -289,112 +292,70 @@ function renderDiscoveredModels() {
   }
 }
 
-checkModels.addEventListener("click", async () => {
+async function checkCatalog(showResults) {
+  const provider = selectedProvider;
+  const name = providerConfigs[provider]?.name || provider;
+  const request = ++catalogRequest;
   checkModels.disabled = true;
-  catalogResults.replaceChildren();
   discoveredModels = [];
-  catalogStatus.textContent = "Checking OpenRouter’s public catalog…";
+  catalogResults.replaceChildren();
+  catalogStatus.textContent = "Checking " + name + "…";
   try {
-    const response = await fetch("/api/free-models", {cache: "no-store"});
-    if (!response.ok) throw new Error("Could not check the catalog. Try again.");
+    const response = await fetch("/api/free-models?provider=" + encodeURIComponent(provider), {cache: "no-store"});
+    if (!response.ok) throw new Error("Could not verify " + name + "’s free models. Try again.");
     const data = await response.json();
-    routerConfigured = data.configured;
+    if (request !== catalogRequest || provider !== selectedProvider) return;
+    freeCatalogs.set(provider, data);
     discoveredModels = data.models;
     newModelIds = new Set();
     try {
-      const key = "last-openrouter-free-models";
+      const key = "last-" + provider + "-free-models";
       const previous = JSON.parse(localStorage.getItem(key));
       const ids = discoveredModels.map(model => model.id);
       if (Array.isArray(previous)) newModelIds = new Set(ids.filter(id => !previous.includes(id)));
-      localStorage.setItem(key, JSON.stringify(ids));
-    } catch { /* Comparison still works when browser storage is unavailable. */ }
+      if (showResults) localStorage.setItem(key, JSON.stringify(ids));
+    } catch { /* Browser storage is optional. */ }
+    populateModelSelector();
+    providerStatus.textContent = data.configured ? (selectedModel ? "● API key configured" : "No free default available") : "API key missing";
     catalogStatus.textContent = discoveredModels.length
-      ? `${discoveredModels.length} free chat models on OpenRouter · ${new Date().toLocaleTimeString()}. Provider rate limits apply.`
-      : "OpenRouter currently lists no qualifying free chat models.";
+      ? name + " · " + discoveredModels.length + " free-tier chat models. Account tier and rate limits apply."
+      : "No qualifying chat models found for " + name + ".";
     renderDiscoveredModels();
   } catch (error) {
+    if (request !== catalogRequest || provider !== selectedProvider) return;
     catalogStatus.textContent = error.message;
+    if (!freeCatalogs.has(provider) && automaticModel) providerStatus.textContent = error.message;
   } finally {
-    checkModels.disabled = false;
+    if (request === catalogRequest) checkModels.disabled = false;
   }
-});
+}
+checkModels.addEventListener("click", () => checkCatalog(true));
 priority.addEventListener("change", renderDiscoveredModels);
 
-function getGeminiSpeedInfo(model) {
-  const id = (model.id || "").toLowerCase();
-
-  if (id.includes("flash-lite")) return { rank: 0, label: "Fastest" };
-  if (id.includes("flash")) return { rank: 1, label: "Fast" };
-  if (id.includes("gemma") && id.includes("26b")) {
-    return { rank: 2, label: "Balanced" };
-  }
-  if (id.includes("gemma") || id.includes("pro")) {
-    return { rank: 3, label: "Slower" };
-  }
-  return { rank: 4, label: "Speed varies" };
-}
-
-function populateModelSelector(filter = modelSearch.value) {
+function populateModelSelector() {
   const provider = providerConfigs[selectedProvider];
-  const models = [...(provider?.models || [])];
-
-  if (selectedProvider === "gemini") {
-    models.sort((a, b) => {
-      const difference =
-        getGeminiSpeedInfo(a).rank - getGeminiSpeedInfo(b).rank;
-      return difference || (a.name || a.id).localeCompare(b.name || b.id);
-    });
+  const catalog = freeCatalogs.get(selectedProvider);
+  const free = catalog?.models || [];
+  const recommended = catalog?.configured ? free[0] : null;
+  const choices = new Map();
+  for (const model of [...(catalog?.configured ? free : []), ...(provider?.models || [])]) {
+    if (!choices.has(model.id)) choices.set(model.id, model);
   }
-  const previousModel = selectedModel;
-  const query = filter.trim().toLowerCase();
-
-  const filtered = models.filter(model =>
-    `${model.name || model.id}`.toLowerCase().includes(query)
-  );
-
-  modelSelector.innerHTML = "";
-
-  filtered.forEach(model => {
-    const option = document.createElement("option");
-    option.value = model.id;
-    const speedLabel = selectedProvider === "gemini"
-      ? ` · ${getGeminiSpeedInfo(model).label}`
-      : "";
-    option.textContent =
-      `${model.name || model.id}${speedLabel}${model.free ? " · FREE" : ""}`;
-    modelSelector.appendChild(option);
-  });
-
-  if (!filtered.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = models.length ? "No matching models" : "No models loaded";
-    modelSelector.appendChild(option);
+  if (!automaticModel && !choices.has(selectedModel)) automaticModel = true;
+  if (automaticModel) selectedModel = recommended?.id || "";
+  modelSelector.replaceChildren(new Option(
+    "Default (best available)" + (recommended ? " · " + recommended.name : ""), "__default__"
+  ));
+  for (const model of choices.values()) {
+    const tier = free.some(item => item.id === model.id) ? " · free tier" : " · check pricing";
+    modelSelector.add(new Option((model.name || model.id) + tier, model.id));
   }
-
-  const preferred = filtered.some(m => m.id === previousModel)
-    ? previousModel
-    : filtered.some(m => m.id === provider?.default_model)
-      ? provider.default_model
-      : filtered[0]?.id || "";
-
   modelSelector.add(new Option("Check for free models…", discoverOption));
-  modelSelector.value = preferred;
-  if (preferred) selectedModel = preferred;
+  modelSelector.value = automaticModel ? "__default__" : selectedModel;
   updateModelDisplay();
 }
 
-modelSearch.addEventListener("input", () =>
-  populateModelSelector(modelSearch.value)
-);
-
 form.parentElement.insertBefore(modelSelector, form);
-
-const providerModelInput = document.createElement("input");
-providerModelInput.id = "provider-model-input";
-providerModelInput.placeholder = "Enter provider model ID";
-providerModelInput.style.display = "none";
-form.parentElement.insertBefore(providerModelInput, form);
 
 const providerStatus = document.createElement("span");
 providerStatus.id = "composer-provider-status";
@@ -410,37 +371,76 @@ function updateModelDisplay() {
   modelButton.title = `Active provider: ${providerName}\nModel: ${model}`;
 }
 
-function updateProviderControls() {
-  modelSearch.value = "";
-  populateModelSelector("");
-
-  modelSelector.style.display = "";
-  providerModelInput.style.display = "none";
-
-  selectedModel = modelSelector.value;
-  updateModelDisplay();
+function selectProvider(id) {
+  selectedProvider = providerSelector.value = id;
+  automaticModel = true;
+  populateModelSelector();
+  const configured = providerConfigs[id]?.configured;
+  providerStatus.textContent = configured ? "Checking best available model…" : "API key missing";
+  if (configured) checkCatalog(false);
 }
 
-providerSelector.addEventListener("change", async () => {
-  selectedProvider = providerSelector.value;
-  updateProviderControls();
-  await refreshProviderStatus();
+providerSelector.addEventListener("change", () => {
+  if (providerSelector.value === "__find__") {
+    providerSelector.value = selectedProvider;
+    document.getElementById("provider-discovery").showModal();
+    findProviders();
+  } else {
+    selectProvider(providerSelector.value);
+  }
 });
+
+async function findProviders() {
+  const list = document.getElementById("provider-offers");
+  const refresh = document.getElementById("find-providers");
+  if (refresh.disabled) return;
+  refresh.disabled = true;
+  list.textContent = "Checking the public provider directory…";
+  try {
+    const response = await fetch("/api/free-providers", {cache: "no-store"});
+    if (!response.ok) throw new Error("Provider search failed. Try again.");
+    const {providers} = await response.json();
+    list.replaceChildren();
+    for (const offer of providers) {
+      const row = document.createElement("p");
+      const link = document.createElement("a");
+      link.href = offer.url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = offer.name + " · provider details";
+      row.append(link);
+      if (offer.supported) {
+        const use = document.createElement("button");
+        use.className = "refresh-usage";
+        use.textContent = "View models";
+        use.onclick = () => {
+          document.getElementById("provider-discovery").close();
+          selectedProvider = providerSelector.value = offer.id;
+          automaticModel = true;
+          populateModelSelector();
+          openModelDiscovery();
+        };
+        row.append(" ", use);
+      } else {
+        row.append(" · Listed free model: " + offer.example + " · External provider");
+      }
+      list.append(row);
+    }
+  } catch (error) { list.textContent = error.message; }
+  finally { refresh.disabled = false; }
+}
+document.getElementById("find-providers").addEventListener("click", findProviders);
 
 modelSelector.addEventListener("change", () => {
   if (modelSelector.value === discoverOption) {
-    modelSelector.value = [...modelSelector.options].some(option => option.value === selectedModel)
-      ? selectedModel : "";
+    modelSelector.value = automaticModel ? "__default__" : selectedModel;
     openModelDiscovery();
     return;
   }
-  selectedModel = modelSelector.value;
-  updateModelDisplay();
-});
-
-providerModelInput.addEventListener("input", () => {
-  selectedModel = providerModelInput.value.trim();
-  updateModelDisplay();
+  automaticModel = modelSelector.value === "__default__";
+  if (!automaticModel) selectedModel = modelSelector.value;
+  populateModelSelector();
+  if (automaticModel && !selectedModel) openModelDiscovery();
 });
 
 async function refreshProviderStatus() {
@@ -456,6 +456,10 @@ async function refreshProviderStatus() {
       providerConfigs[provider.id] = provider;
     });
 
+    const firstConnected = providers.find(p => p.configured);
+    if (!providerConfigs[selectedProvider]?.configured && firstConnected) {
+      selectedProvider = providerSelector.value = firstConnected.id;
+    }
     const current = providerConfigs[selectedProvider];
 
     providerStatus.textContent = current
@@ -466,7 +470,8 @@ async function refreshProviderStatus() {
       ? "provider-ready"
       : "provider-missing";
 
-    updateProviderControls();
+    populateModelSelector();
+    if (current?.configured) void checkCatalog(false);
 
   } catch (error) {
     providerStatus.textContent = "Status unavailable";
@@ -1742,9 +1747,7 @@ async function initialize() {
     await refreshProviderStatus();
     await refreshComposerTools();
 
-    selectedModel = providerConfigs.groq?.default_model || selectedModel;
-    modelSelector.value = selectedModel;
-    updateModelDisplay();
+
 
     const response = await fetch("/api/conversations");
     if (!response.ok) throw new Error("Could not load history");

@@ -1956,7 +1956,7 @@ button {
 .capability-group pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .tools-summary:empty { display: none; }
 
-#model-discovery, #provider-discovery {
+#model-discovery, #provider-management {
   width: min(92vw, 560px);
   max-height: 85dvh;
   overflow: auto;
@@ -1968,9 +1968,63 @@ button {
 }
 #model-discovery header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 #model-discovery h2 { margin: 0; }
-#provider-discovery a { color: var(--accent); }
-#provider-discovery header { display: flex; justify-content: space-between; align-items: center; }
-#provider-discovery::backdrop, #model-discovery::backdrop { background: rgb(0 0 0 / 60%); }
+#provider-management a { color: var(--accent); }
+#provider-management header { display: flex; justify-content: space-between; align-items: center; }
+#provider-management::backdrop, #model-discovery::backdrop { background: rgb(0 0 0 / 60%); }
 
 #provider-offers article { padding: 12px 0; border-top: 1px solid var(--border); }
 #provider-offers article p { margin: 5px 0; }
+
+
+.provider-manager-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.provider-manager-tabs button {
+  flex: 1;
+  padding: 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.provider-manager-tabs button[aria-pressed="true"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+#provider-management-list article {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+#provider-management-list input,
+#provider-management-list select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px;
+}
+
+.provider-manager-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+#add-provider-shortcut {
+  margin-top: 12px;
+}
+
+#provider-management [hidden] {
+  display: none !important;
+}

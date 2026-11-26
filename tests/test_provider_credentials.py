@@ -27,6 +27,14 @@ from app import connect_provider, disconnect_provider
 class CredentialTests(unittest.TestCase):
 
     def setUp(self):
+        for target in (
+            "providers.read_saved_credential",
+            "app.delete_saved_credential",
+        ):
+            patcher = patch(target, return_value=None)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
         for mapping in (
             SESSION_PROVIDER_KEYS,
             SESSION_PROVIDER_VALIDATION,

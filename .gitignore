@@ -26,3 +26,5 @@ pending_gmail_messages.json
 /google_calendar_signin_*.processing
 /google_calendar_token_*.json
 /pending_google_tasks.sqlite3*
+/provider_configuration.json
+/.provider-config-*

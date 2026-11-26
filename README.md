@@ -62,15 +62,15 @@ There is no automatic image-to-text fallback. The application does not first sen
 
 ## Testing
 
-Run the MCP integration smoke test using the project environment:
+Run the offline checks with Python 3.12 and Node.js 22 on your PATH.
+
+    python3 scripts/check.py
+
+GitHub Actions runs the same command on pushes and pull requests. It checks Python and browser JavaScript syntax and runs the unit tests in `tests/` with a temporary application data directory. Add new unit tests in files named `test_*.py`. An empty suite fails the check.
+
+For a live MCP integration smoke test, use the project environment to discover tools and call the current-time tool.
 
     .venv/bin/python test_mcp.py
-
-This script discovers MCP tools and calls the current-time tool. It is a smoke test, not a `unittest` test case; unittest discovery therefore reports zero tests.
-
-Compile-check Python source files:
-
-    .venv/bin/python -m compileall -q .
 
 ## Developer documentation
 

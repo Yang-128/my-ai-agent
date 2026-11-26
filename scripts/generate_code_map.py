@@ -40,6 +40,9 @@ def safe_path(value):
 
 def file_purpose(name):
     purposes = {
+        ".github/workflows/checks.yml": "Runs offline checks on pushes and pull requests.",
+        "scripts/check.py": "Checks source syntax and runs the offline unit suite.",
+        "tests/test_storage.py": "Tests conversation persistence with a temporary database.",
         ".env.example": "Template for local environment variables.",
         ".gitignore": "Excludes local secrets, data, caches, and generated files.",
         "README.md": "Project overview, setup, usage, and development instructions.",

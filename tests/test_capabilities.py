@@ -57,19 +57,17 @@ class CapabilityTests(unittest.TestCase):
         self.assertIsNone(router_limit("missing table"))
 
     def test_document_navigation_preserves_dotted_folders(self):
-        with tempfile.TemporaryDirectory() as folder, patch.object(app, "DOCUMENTS_ROOT", Path(folder)):
+        with tempfile.TemporaryDirectory() as folder, patch.object(app, "DOCUMENTS_ROOT", Path(folder).resolve()):
             (Path(folder) / "Drafts.v2" / "Notes").mkdir(parents=True)
             self.assertEqual(app.browse_documents("Drafts.v2/Notes")["parent"], "Drafts.v2")
             self.assertEqual(app.browse_documents("Drafts.v2")["parent"], "")
             self.assertIsNone(app.browse_documents()["parent"])
 
-    def test_group_toggle_validates_all_names_before_changing_settings(self):
+    def test_legacy_disabled_tools_remain_available(self):
         definitions = [{"function": {"name": n}} for n in ("first", "second")]
         with tempfile.TemporaryDirectory() as directory, patch.object(
             storage, "DB_PATH", Path(directory) / "test.db"
         ), patch.object(app, "get_all_tool_definitions", return_value=definitions):
             storage.init_db()
-            app.update_tool_settings({"names": ["first", "second"], "enabled": False})
-            with self.assertRaises(HTTPException):
-                app.update_tool_settings({"names": ["first", "missing"], "enabled": True})
-            self.assertEqual(storage.get_tool_settings(), {"first": False, "second": False})
+            storage.set_tools_enabled(["first", "second"], False)
+            self.assertTrue(all(tool["enabled"] for tool in app.tools_status()))

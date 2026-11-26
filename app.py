@@ -17,8 +17,6 @@ from storage import (
     get_daily_usage,
     get_turn_usage,
     record_usage,
-    get_tool_settings,
-    set_tool_enabled, set_tools_enabled
 )
 from provider_ranking import ranked_providers
 from providers import FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
@@ -366,51 +364,18 @@ def provider_status():
 @app.get("/api/tools")
 def tools_status():
     definitions = get_all_tool_definitions()
-    settings = get_tool_settings()
     return [
         {
             "name": item["function"]["name"],
             "description": item["function"].get("description", ""),
             "parameters": item["function"].get("parameters", {}),
             "source": "MCP" if item["function"]["name"].startswith("mcp_") else "Built-in",
-            "enabled": settings.get(item["function"]["name"], True),
+            "enabled": True,
         }
         for item in definitions
     ]
 
 
-
-
-@app.post("/api/tool-settings/batch")
-def update_tool_settings(body: dict):
-    names, enabled = body.get("names"), body.get("enabled")
-    if not isinstance(enabled, bool) or not isinstance(names, list) or not names or not all(isinstance(n, str) for n in names):
-        raise HTTPException(422, "Provide tool names and an enabled setting.")
-    available = {item["function"]["name"] for item in get_all_tool_definitions()}
-    if set(names) - available:
-        raise HTTPException(404, "One or more tools are unavailable. Refresh Tools.")
-    set_tools_enabled(set(names), enabled)
-    return {"enabled": enabled}
-
-
-@app.post("/api/tools/{tool_name}/enabled")
-def update_tool_enabled(tool_name: str, body: dict):
-    available = {
-        item["function"]["name"]
-        for item in get_all_tool_definitions()
-    }
-    if tool_name not in available:
-        raise HTTPException(status_code=404, detail="Tool not found")
-
-    enabled = body.get("enabled")
-    if not isinstance(enabled, bool):
-        raise HTTPException(
-            status_code=422,
-            detail="'enabled' must be true or false"
-        )
-
-    set_tool_enabled(tool_name, enabled)
-    return {"name": tool_name, "enabled": enabled}
 
 
 @app.get("/api/tools/status")
@@ -440,8 +405,6 @@ def run_tool(tool_name: str, arguments: dict):
     }
     if tool_name not in available:
         raise HTTPException(status_code=404, detail="Tool not found")
-    if not get_tool_settings().get(tool_name, True):
-        raise HTTPException(status_code=403, detail="Tool is disabled")
     try:
         return {"success": True, "result": str(execute_tool(tool_name, arguments))}
     except Exception as error:

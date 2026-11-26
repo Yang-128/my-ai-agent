@@ -98,6 +98,52 @@ button {
   margin-top: 32px;
 }
 
+.history {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+#history-dialog {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  width: min(92vw, 420px);
+  max-height: 80dvh;
+}
+
+#history-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+#history-dialog::backdrop {
+  background: rgb(0 0 0 / 60%);
+}
+
+#history-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+#history-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+#history-dialog button:not(.history-item) {
+  background: var(--panel-hover);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
 .history-item {
   width: 100%;
   font-size: 12px;

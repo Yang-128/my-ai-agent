@@ -26,17 +26,17 @@
 
 ### Frontend behavior — `static/app.js`
 
-- **L1811** Page navigation: `async function showUsage() {`
-- **L1826** Return navigation: `function showChat() {`
-- **L1841** Reset countdown renderer: `function updateResetCountdowns() {`
-- **L1885** Usage data loading and rendering: `async function refreshUsage() {`
-- **L1894** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
-- **L1903** Usage API request: `const response = await fetch("/api/usage");`
-- **L1955** Daily quota status: `function isDailyLimitReached(item) {`
-- **L1968** Quota availability check: `function hasKnownDailyLimit(item) {`
-- **L2076** Quota formatting: `function quotaText(used, limit) {`
-- **L2191** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
-- **L2215** Refresh event: `.addEventListener("click", refreshUsage);`
+- **L1832** Page navigation: `async function showUsage() {`
+- **L1847** Return navigation: `function showChat() {`
+- **L1862** Reset countdown renderer: `function updateResetCountdowns() {`
+- **L1906** Usage data loading and rendering: `async function refreshUsage() {`
+- **L1915** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
+- **L1924** Usage API request: `const response = await fetch("/api/usage");`
+- **L1976** Daily quota status: `function isDailyLimitReached(item) {`
+- **L1989** Quota availability check: `function hasKnownDailyLimit(item) {`
+- **L2097** Quota formatting: `function quotaText(used, limit) {`
+- **L2212** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
+- **L2236** Refresh event: `.addEventListener("click", refreshUsage);`
 
 ### Backend API and refresh — `app.py`
 
@@ -87,26 +87,26 @@
 
 ### Usage styling — `static/style.css`
 
-- **L371** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L554** Page layout: `.usage-page {`
-- **L562** Page heading: `.usage-heading h1 {`
-- **L567** Page heading: `.usage-heading p,`
-- **L573** Summary grid: `.usage-summary {`
-- **L580** Summary cards: `.usage-card {`
-- **L587** Summary cards: `.usage-card span {`
-- **L592** Summary cards: `.usage-card strong {`
-- **L598** Section layout: `.usage-section h2 {`
-- **L746** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L775** Provider grid: `.provider-status-grid {`
-- **L782** Provider cards: `.provider-status-card {`
-- **L792** Provider cards: `.provider-status-card:hover {`
-- **L832** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L1000** Responsive breakpoint: `@media (max-width: 900px) {`
-- **L1006** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L1369** Responsive breakpoint: `@media (max-width: 760px) {`
-- **L1483** Responsive breakpoint: `@media (max-width: 600px) {`
-- **L1628** Responsive breakpoint: `@media (max-width: 700px) {`
-- **L1869** Responsive breakpoint: `@media (max-width: 380px) {`
+- **L417** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L600** Page layout: `.usage-page {`
+- **L608** Page heading: `.usage-heading h1 {`
+- **L613** Page heading: `.usage-heading p,`
+- **L619** Summary grid: `.usage-summary {`
+- **L626** Summary cards: `.usage-card {`
+- **L633** Summary cards: `.usage-card span {`
+- **L638** Summary cards: `.usage-card strong {`
+- **L644** Section layout: `.usage-section h2 {`
+- **L792** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L821** Provider grid: `.provider-status-grid {`
+- **L828** Provider cards: `.provider-status-card {`
+- **L838** Provider cards: `.provider-status-card:hover {`
+- **L878** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L1046** Responsive breakpoint: `@media (max-width: 900px) {`
+- **L1052** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L1415** Responsive breakpoint: `@media (max-width: 760px) {`
+- **L1529** Responsive breakpoint: `@media (max-width: 600px) {`
+- **L1674** Responsive breakpoint: `@media (max-width: 700px) {`
+- **L1915** Responsive breakpoint: `@media (max-width: 380px) {`
 
 ## Current redesign targets
 

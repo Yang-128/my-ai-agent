@@ -1449,12 +1449,24 @@ function addMessage(text, role, images = []) {
   return message;
 }
 
+const historyDialog = document.getElementById("history-dialog");
+const historyLabel = document.querySelector(".history-label");
+document.getElementById("open-history").addEventListener("click", () => {
+  historyDialog.append(history);
+  historyDialog.showModal();
+});
+
+historyDialog.addEventListener("close", () => historyLabel.after(history));
+window.matchMedia("(max-width: 700px)").addEventListener("change", event => {
+  if (!event.matches && historyDialog.open) historyDialog.close();
+});
+
 async function refreshHistory() {
   const response = await fetch("/api/conversations");
   if (!response.ok) throw new Error("Could not load conversation history");
 
   const conversations = await response.json();
-  history.innerHTML = "";
+  const items = document.createDocumentFragment();
 
   conversations.forEach(conversation => {
     const item = document.createElement("button");
@@ -1467,8 +1479,9 @@ async function refreshHistory() {
     }
 
     item.addEventListener("click", () => openConversation(conversation.id));
-    history.appendChild(item);
+    items.appendChild(item);
   });
+  history.replaceChildren(items);
 }
 
 async function openConversation(id) {
@@ -1483,6 +1496,14 @@ async function openConversation(id) {
 
   const data = await response.json();
 
+  if (historyDialog.open) {
+    historyDialog.close();
+    document.querySelectorAll("#mobile-navigation [data-page]").forEach(button => {
+      const active = button.dataset.page === "chat";
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-current", active ? "page" : "false");
+    });
+  }
   currentConversationId = id;
   messages.innerHTML = "";
   welcome.style.display = data.messages.length ? "none" : "block";
@@ -2575,7 +2596,6 @@ async function showFiles() {
   toolsNav.classList.remove("active");
   filesNav.classList.add("active");
 
-  document.querySelector(".history-label").style.display = "none";
   breadcrumb.innerHTML = "Workspace <span>/</span> Files";
 
   await loadFiles("");

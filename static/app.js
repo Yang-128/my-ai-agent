@@ -275,7 +275,7 @@ function renderDiscoveredModels() {
         const guide = document.getElementById("key-guide");
         guide.open = true;
         guide.scrollIntoView({block: "center"});
-        guide.querySelector(`[data-provider="${selectedProvider}"]`).focus({preventScroll: true});
+        guide.querySelector(`[data-provider="${selectedProvider}"]`)?.focus({preventScroll: true});
         return;
       }
       automaticModel = false;
@@ -426,13 +426,17 @@ async function findProviders() {
       if (offer.supported) {
         const use = document.createElement("button");
         use.className = "refresh-usage";
-        use.textContent = "View models";
+        use.textContent = providerConfigs[offer.id]?.setup_url ? "Add provider" : "View models";
         use.onclick = () => {
           document.getElementById("provider-discovery").close();
+          if (![...providerSelector.options].some(option => option.value === offer.id)) {
+            providerSelector.add(new Option(offer.name, offer.id), providerSelector.options.length - 1);
+          }
           selectedProvider = providerSelector.value = offer.id;
           automaticModel = true;
           populateModelSelector();
           openModelDiscovery();
+          if (!providerConfigs[offer.id]?.configured) document.getElementById("key-guide").open = true;
         };
         row.append(" ", use);
       } else {
@@ -470,6 +474,23 @@ async function refreshProviderStatus() {
       providerConfigs[provider.id] = provider;
     });
 
+    const keyList = document.querySelector("#key-guide ul");
+    for (const provider of providers.filter(item => item.setup_url)) {
+      if (provider.configured && ![...providerSelector.options].some(option => option.value === provider.id)) {
+        providerSelector.add(new Option(provider.name, provider.id), providerSelector.options.length - 1);
+      }
+      const entry = document.createElement("li");
+      const link = document.createElement("a");
+      link.dataset.provider = provider.id;
+      link.href = provider.setup_url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = provider.name + " key setup";
+      const variable = document.createElement("code");
+      variable.textContent = provider.key_variable;
+      entry.append(link, " · ", variable);
+      keyList.append(entry);
+    }
     const firstConnected = providers.find(p => p.configured);
     if (!providerConfigs[selectedProvider]?.configured && firstConnected) {
       selectedProvider = providerSelector.value = firstConnected.id;

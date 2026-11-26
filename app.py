@@ -21,7 +21,7 @@ from storage import (
     set_tool_enabled, set_tools_enabled
 )
 from provider_ranking import ranked_providers
-from providers import FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
+from providers import EXTERNAL_CONNECTIONS, FREE_TIER_PAGES, discover_free_models, PROVIDERS, get_provider_client, get_provider_model, get_available_models
 from tools import get_all_tool_definitions, execute_tool
 from calendar_approval import (
     get_pending_calendar_event, discard_pending_calendar_event,
@@ -334,7 +334,7 @@ def check_free_models(provider: str = "openrouter"):
         models = discover_free_models(provider)
     except Exception as error:
         raise HTTPException(502, f"Could not verify the free catalog for {PROVIDERS[provider]['name']}. Check the connection and API key, then retry.") from error
-    return {"provider": provider, "models": models, "source": FREE_TIER_PAGES[provider],
+    return {"provider": provider, "models": models, "source": FREE_TIER_PAGES.get(provider) or PROVIDERS[provider]["setup_url"],
             "configured": bool(os.getenv(PROVIDERS[provider]["api_key"], "").strip())}
 
 
@@ -357,7 +357,9 @@ def provider_status():
             "display_model": config.get(
                 "display_model", config["default_model"]
             ),
-            "models": get_available_models(provider_id)
+            "setup_url": config.get("setup_url"),
+            "key_variable": config["api_key"],
+            "models": [] if provider_id in EXTERNAL_CONNECTIONS else get_available_models(provider_id)
         }
         for provider_id, config in PROVIDERS.items()
     ]

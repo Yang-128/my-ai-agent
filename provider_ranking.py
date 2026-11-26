@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 from lxml import html
 
-from providers import FREE_TIER_PAGES, PROVIDERS, free_plan_ids, public_catalog
+from providers import FREE_TIER_PAGES, PROVIDERS, is_listed_free_chat, free_plan_ids, public_catalog
 from storage import get_gemini_limits
 
 ROUTER_LIMITS = "https://openrouter.ai/docs/api/reference/limits"
@@ -101,7 +101,6 @@ def ranked_providers():
         options = []
         for model in provider.get("models", {}).values():
             model_id = model.get("id", "")
-            cost = model.get("cost") or {}
             modalities = model.get("modalities") or {}
             if ("text" not in modalities.get("input", []) or "text" not in modalities.get("output", [])
                     or model.get("status") == "deprecated"):
@@ -109,8 +108,7 @@ def ranked_providers():
             if key in plan_ids:
                 if model_id not in plan_ids[key]:
                     continue
-            elif not (re.search(r"(?:^|[-:/ ])free(?:$|[-:/ )])", model_id.lower())
-                      and cost.get("input") == cost.get("output") == 0):
+            elif not is_listed_free_chat(model):
                 continue
 
             rpd = tpd = None

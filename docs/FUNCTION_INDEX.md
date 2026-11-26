@@ -78,10 +78,10 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 177 | function | `_int_header` |
 | 185 | function | `save_provider_headers` |
 | 197 | function | `ai_decide_extensions` |
-| 381 | class | `ExtensionDecisionRequest` |
-| 389 | function | `decide_extensions` |
-| 417 | function | `chat` |
-| 474 | function | `chat.generate` |
+| 407 | class | `ExtensionDecisionRequest` |
+| 415 | function | `decide_extensions` |
+| 443 | function | `chat` |
+| 500 | function | `chat.generate` |
 
 ### `gmail_approval.py`
 
@@ -184,6 +184,13 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 17 | constant | `ENV_FILE` |
 | 18 | constant | `DB_PATH` |
 
+### `scripts/check.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 9 | constant | `ROOT` |
+| 12 | function | `main` |
+
 ### `scripts/generate_code_map.py`
 
 | Line | Kind | Symbol |
@@ -195,20 +202,20 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 26 | function | `git_output` |
 | 33 | function | `safe_path` |
 | 41 | function | `file_purpose` |
-| 101 | function | `inventory` |
-| 134 | function | `python_symbols` |
-| 142 | function | `python_symbols.walk` |
-| 165 | function | `js_symbols` |
-| 200 | function | `rust_symbols` |
-| 233 | function | `imports` |
-| 247 | function | `javascript_imports` |
-| 263 | function | `rust_imports` |
-| 272 | function | `frontend_external_assets` |
-| 279 | function | `declared_dependencies` |
-| 308 | function | `generate_feature_code_map` |
-| 331 | function | `generate_feature_code_map.read_lines` |
-| 338 | function | `generate_feature_code_map.section` |
-| 434 | function | `main` |
+| 104 | function | `inventory` |
+| 137 | function | `python_symbols` |
+| 145 | function | `python_symbols.walk` |
+| 168 | function | `js_symbols` |
+| 203 | function | `rust_symbols` |
+| 236 | function | `imports` |
+| 250 | function | `javascript_imports` |
+| 266 | function | `rust_imports` |
+| 275 | function | `frontend_external_assets` |
+| 282 | function | `declared_dependencies` |
+| 311 | function | `generate_feature_code_map` |
+| 334 | function | `generate_feature_code_map.read_lines` |
+| 341 | function | `generate_feature_code_map.section` |
+| 437 | function | `main` |
 
 ### `storage.py`
 
@@ -235,6 +242,15 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 640 | function | `get_turn_usage` |
 | 689 | function | `get_tool_settings` |
 | 698 | function | `set_tool_enabled` |
+
+### `tests/test_storage.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 9 | class | `ConversationTests` |
+| 10 | function | `ConversationTests.setUp` |
+| 18 | function | `ConversationTests.test_saved_conversation_retains_title_and_message_order` |
+| 32 | function | `ConversationTests.test_unknown_conversation` |
 
 ### `tools.py`
 

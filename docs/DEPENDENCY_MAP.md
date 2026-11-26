@@ -62,6 +62,10 @@
 
 - No imports of other local Python modules detected.
 
+### `scripts/check.py`
+
+- No imports of other local Python modules detected.
+
 ### `scripts/generate_code_map.py`
 
 - No imports of other local Python modules detected.
@@ -73,6 +77,10 @@
 ### `test_mcp.py`
 
 - `mcp_client`
+
+### `tests/test_storage.py`
+
+- `storage`
 
 ### `tools.py`
 

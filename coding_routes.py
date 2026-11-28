@@ -55,6 +55,7 @@ class ExternalExportRequest(BaseModel):
     issue: int = Field(ge=1, le=1_000_000)
     checkpoint_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     paths: list[str] | None = Field(default=None, max_length=30)
+    focus: str = Field(default="", max_length=2000)
     approved: bool = False
 
 
@@ -84,7 +85,7 @@ def external_operation(request, approved, operation):
 @router.post("/api/coding/external/export")
 def external_export(request: Request, body: ExternalExportRequest):
     return external_operation(request, body.approved,
-        lambda: export_prompt(body.issue, body.checkpoint_id, body.paths))
+        lambda: export_prompt(body.issue, body.checkpoint_id, body.paths, focus=body.focus))
 
 
 @router.post("/api/coding/external/import")

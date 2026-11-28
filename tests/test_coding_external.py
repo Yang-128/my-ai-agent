@@ -302,6 +302,25 @@ class ExternalDevelopmentTests(unittest.TestCase):
         self.assertIn("Repair the failed checks before adding features", second["prompt"])
         self.assertNotIn("Complete as much of one coherent end-to-end feature", second["prompt"])
 
+    def test_response_validation_reports_specific_schema_errors(self):
+        package = self.export()
+        valid = json.loads(self.response(package, []))
+        cases = [
+            ({k: v for k, v in valid.items() if k != "package_id"}, "missing fields: package_id"),
+            ({**valid, "unexpected": "private content"}, "1 unexpected top-level field"),
+            ({**valid, "edits": {}}, "edits must be a JSON array"),
+            ({**valid, "edits": [{}] * 41}, "41 edits supplied; maximum 40"),
+            ({**valid, "summary": "x" * 4001}, "summary is 4001 characters; maximum 4000"),
+            ({**valid, "summary": []}, "summary must be a JSON string"),
+            ({**valid, "package_id": None}, "package_id must be a JSON string"),
+            ([], "single JSON object"),
+        ]
+        for payload, diagnostic in cases:
+            with self.subTest(diagnostic=diagnostic):
+                with self.assertRaisesRegex(CodingError, diagnostic):
+                    decode_response(json.dumps(payload))
+        self.assertEqual(decode_response(json.dumps(valid)), valid)
+
     def test_json_fence_and_duplicate_keys(self):
         package = self.export()
         raw = self.response(package, [])

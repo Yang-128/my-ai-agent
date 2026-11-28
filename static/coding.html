@@ -14,13 +14,22 @@ small{color:#b3b5bc} [hidden]{display:none!important}
 <body>
 <a href="/">← Back to chat</a>
 <h1>GitHub issue coding</h1>
-<p>Model: <strong>Gemini 3.5 Flash-Lite</strong>. Repository: Yang-128/my-ai-agent.</p>
+<p>Default model: <strong>Gemini 3.5 Flash-Lite</strong>. Repository: Yang-128/my-ai-agent.</p>
 <div class="panel">
 <label>Local coding session token<input id="token" type="password" autocomplete="off" spellcheck="false"></label>
 <label>Open GitHub issue number<input id="issue" type="number" min="1" max="1000000" inputmode="numeric"></label>
-<label><input id="approved" type="checkbox"> I authorize sending the selected issue and relevant committed project source to Gemini, running code in the local isolated Docker worker, and using the configured Gemini account. I have confirmed its billing/free-tier settings. No patch will be automatically applied or pushed.</label>
-<small>Only selected committed text source is copied. Local edits, credentials and runtime files are excluded by design; inspect committed content for sensitive information before starting. The first version is local-only and caps inference attempts at 32.</small>
-<div><button id="start">Fix issue</button><button id="stop" disabled>Stop</button></div>
+<button id="discover">Load free models and saved sessions</button>
+<label>Resume checkpoint<select id="checkpoint"><option value="">New coding session</option></select></label>
+<button id="delete-checkpoint" disabled>Delete selected checkpoint</button>
+<div id="models" hidden>
+<p>Choose up to three models in execution order. Leave all blank to use the existing default.</p>
+<label>First model<select id="model-1"></select></label>
+<label>Fallback model<select id="model-2"></select></label>
+<label>Final fallback model<select id="model-3"></select></label>
+</div>
+<label><input id="approved" type="checkbox"> I authorize sending the selected issue and relevant committed project source to the selected providers, including each chosen fallback, running code in the local isolated Docker worker, and saving private local source checkpoints. I have confirmed the selected accounts' billing/free-tier settings. No patch will be automatically applied or pushed.</label>
+<small>Only selected committed text source is copied. Local edits, credentials and runtime files are excluded by design; inspect committed content for sensitive information before starting. The first version is local-only and caps inference attempts at 32 per model stage, with at most three stages. Public free listings cannot verify your account's billing settings.</small>
+<div><button id="start">Fix or resume issue</button><button id="stop" disabled>Stop</button></div>
 <p id="status" role="status">Ready. Start the dedicated local coding server and build the worker image first.</p>
 </div>
 <div class="panel"><h2>Activity</h2><pre id="activity" aria-live="polite"></pre></div>

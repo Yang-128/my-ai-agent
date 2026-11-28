@@ -2,6 +2,8 @@
 
 ## Documentation index
 
+- [Experimental coding mode](CODING_MODE.md) — GitHub issue-to-patch workflow and sandbox setup
+
 - [Architecture](ARCHITECTURE.md)
 - [Repository map](REPOSITORY_MAP.md) — generated
 - [Function index](FUNCTION_INDEX.md) — generated

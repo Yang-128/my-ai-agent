@@ -78,6 +78,7 @@ function fileToDataUrl(file) {
 
 
 function capability(name) {
+  if (["mcp_calculate_decimal", "mcp_summarize_decimal_rows"].includes(name)) return "Calculations";
   const id = name.replace(/^mcp_/, "");
   if (id.includes("calendar")) return "Calendar actions";
   if (id.includes("google_task")) return "Tasks";
@@ -2478,6 +2479,7 @@ async function refreshTools() {
       heading.textContent = `${group} · ${members.length} available`;
       const description = document.createElement("p");
       description.textContent = {
+        "Calculations": "Calculate decimal totals, percentages, and unit conversions.",
         "Calendar actions": "Find events and propose calendar changes.",
         "Tasks": "Find, create, update, and complete Google Tasks.",
         "Email": "Search and read Gmail, or prepare messages for approval.",

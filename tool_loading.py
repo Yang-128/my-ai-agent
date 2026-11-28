@@ -14,6 +14,7 @@ GROUPS = {
     "documents": "Document creation",
     "memory": "Previous conversation retrieval",
     "system": "Current time and system information",
+    "calculations": "Decimal arithmetic, percentages and unit conversions",
     "other": "Other registered capabilities",
 }
 
@@ -54,6 +55,8 @@ def tool_name(tool):
 def tool_group(name):
     name = name.removeprefix("mcp_")
 
+    if name in {"calculate_decimal", "summarize_decimal_rows"}:
+        return "calculations"
     if "gmail" in name:
         return "email"
     if "calendar" in name:
@@ -179,6 +182,11 @@ def select_initial_tools(
         group for group, pattern in PATTERNS.items()
         if re.search(pattern, text, re.I)
     }
+
+    if "mcp_calculate_decimal" in {tool_name(tool) for tool in registry} and re.search(
+        r"\b(?:calculate|percentage|unit conversion|sum of|average of|group(?:ed)? totals|group by|convert [+-]?\d)\b", text, re.I
+    ):
+        groups.add("calculations")
 
     # General questions receive no tool definitions only when
     # there are no obvious external-data requirements.

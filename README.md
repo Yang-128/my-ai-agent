@@ -107,3 +107,9 @@ Regenerate the repository indexes after source changes:
     .venv/bin/python scripts/generate_code_map.py
 
 Never commit `.env`, OAuth tokens, local databases, pending-action files, or personal data.
+
+## Contributing
+
+See [Contributing](CONTRIBUTING.md) for issue reports, branches, checks, and pull requests.
+
+The Calculations tool handles sums, averages, division, percentages, and common length, mass, and time conversions using decimal arithmetic.

@@ -334,7 +334,7 @@ class ExternalDevelopmentTests(unittest.TestCase):
 
     def test_external_roadmap_persists_reported_coverage_and_legacy_import(self):
         self.fetch = lambda n: {"number": n, "title": "Progress",
-            "body": "## Implementation directions\n1. Backend\n2. Frontend\n## Definition of done\n- Verify behavior"}
+            "body": "## Implementation directions\n1. Backend in chat.py\n2. Frontend in static/app.js\n## Definition of done\n- Verify behavior"}
         first = self.export()
         self.assertEqual(first["issue_progress"]["total"], 3)
         self.assertEqual(first["issue_progress"]["reported_done"], 0)

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from coding_agent import MODEL
 from coding_chain import catalog, run_chain, SUPPORTED, MAX_STAGES
 from coding_checkpoints import CheckpointStore
-from external_development import export_prompt, import_response
+from external_development import export_prompt, import_response, saved_patch
 from runtime import RESOURCE_DIR
 from terminal_runner import CodingError, CodingCancelled
 
@@ -139,6 +139,16 @@ def coding_catalog(request: Request):
 def coding_checkpoints(request: Request):
     local_request(request)
     return {"checkpoints": CheckpointStore().list()}
+
+
+@router.get("/api/coding/checkpoints/{identifier}/patch")
+def checkpoint_patch(request: Request, identifier: str):
+    local_request(request)
+    with LOCK:
+        try:
+            return saved_patch(identifier)
+        except CodingError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
 
 @router.delete("/api/coding/checkpoints/{identifier}")

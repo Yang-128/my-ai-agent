@@ -178,6 +178,47 @@ class PDFGenerationTests(unittest.TestCase):
                 })
             self.assertFalse((root / "empty.pdf").exists())
 
+    def test_layout_previews_preserve_document_structure(self):
+        from docx import Document
+        from openpyxl import Workbook
+        from pptx import Presentation
+        from pypdf import PdfWriter
+        from fastapi.testclient import TestClient
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            app, "DOCUMENTS_ROOT", Path(directory)
+        ), TestClient(app.app) as client:
+            root = Path(directory)
+            document = Document()
+            document.add_heading("Heading", 1)
+            document.add_table(rows=1, cols=1).cell(0, 0).text = "Cell"
+            document.add_paragraph("After the table")
+            document.save(root / "report.docx")
+            sheet = Workbook()
+            sheet.active.append(["First", None, "Third"])
+            sheet.save(root / "data.xlsx")
+            deck = Presentation()
+            slide = deck.slides.add_slide(deck.slide_layouts[1])
+            slide.shapes.title.text = "Title"
+            deck.save(root / "slides.pptx")
+            pdf = PdfWriter()
+            pdf.add_blank_page(width=100, height=100)
+            pdf.write(root / "scan.pdf")
+
+            blocks = app.read_document_content("report.docx", layout=True)["layout"]
+            self.assertEqual([block["kind"] for block in blocks], ["paragraph", "table", "paragraph"])
+            self.assertEqual(blocks[0]["style"], "Heading 1")
+            self.assertEqual(app.read_document_content("data.xlsx", layout=True)["layout"][0]["rows"],
+                             [["First", "", "Third"]])
+            shape = app.read_document_content("slides.pptx", layout=True)["layout"][0]["shapes"][0]
+            self.assertTrue(shape["heading"])
+            self.assertAlmostEqual(shape["left"], 5)
+            response = client.get("/api/documents/pdf", params={"path": "scan.pdf"})
+            self.assertEqual(response.headers["content-type"], "application/pdf")
+            self.assertEqual(response.content, (root / "scan.pdf").read_bytes())
+            self.assertEqual(client.get("/api/documents/pdf", params={"path": "report.docx"}).status_code, 415)
+            self.assertEqual(client.get("/api/documents/pdf", params={"path": "../scan.pdf"}).status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

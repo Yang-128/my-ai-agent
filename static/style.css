@@ -2028,3 +2028,20 @@ button {
 #provider-management [hidden] {
   display: none !important;
 }
+
+.document-layout {
+  background: #fff;
+  color: #1f2937;
+  border-radius: 8px;
+  padding: clamp(14px, 3vw, 32px);
+  overflow-wrap: anywhere;
+}
+.document-layout p { white-space: pre-wrap; }
+.document-table { max-width: 100%; overflow: auto; margin: 12px 0; }
+.document-table table { border-collapse: collapse; min-width: 100%; }
+.document-table caption { text-align: left; font-weight: bold; padding: 8px; }
+.document-table td { padding: 6px 10px; border: 1px solid #cbd5e1; white-space: pre-wrap; }
+.document-slide { position: relative; aspect-ratio: 16 / 9; border: 1px solid #cbd5e1; overflow: hidden; container-type: inline-size; }
+.document-slide > * { position: absolute; white-space: pre-wrap; overflow: hidden; font-size: clamp(8px, 3cqw, 24px); }
+.document-slide > strong { font-size: clamp(10px, 5cqw, 36px); }
+.document-pdf { width: 100%; min-height: 65vh; border: 1px solid var(--border); }

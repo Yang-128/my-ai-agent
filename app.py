@@ -186,8 +186,20 @@ def download_document(path: str):
     )
 
 
+@app.get("/api/documents/pdf")
+def preview_pdf(path: str):
+    target = resolve_documents_path(path)
+    if not target.is_file():
+        raise HTTPException(404, "File not found.")
+    with target.open("rb") as stream:
+        if target.suffix.lower() != ".pdf" or stream.read(5) != b"%PDF-":
+            raise HTTPException(415, "This file is not a PDF.")
+    return FileResponse(target, media_type="application/pdf",
+                        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
+
+
 @app.get("/api/documents/content")
-def read_document_content(path: str):
+def read_document_content(path: str, layout: bool = False):
     from zipfile import BadZipFile
 
     from docx.opc.exceptions import PackageNotFoundError
@@ -203,6 +215,7 @@ def read_document_content(path: str):
 
     try:
         suffix = target.suffix.lower()
+        preview = None
 
         if suffix == ".docx":
             from docx import Document
@@ -210,6 +223,19 @@ def read_document_content(path: str):
             content = "\n".join(
                 paragraph.text for paragraph in document.paragraphs
             )
+            if layout:
+                from docx.table import Table
+                from docx.text.paragraph import Paragraph
+
+                preview = []
+                for item in document.iter_inner_content():
+                    if isinstance(item, Paragraph):
+                        preview.append({"kind": "paragraph", "style": item.style.name,
+                                        "text": item.text})
+                    elif isinstance(item, Table):
+                        preview.append({"kind": "table", "rows": [
+                            [cell.text for cell in row.cells] for row in item.rows
+                        ]})
             for table in document.tables:
                 content += "\n\n" + "\n".join(
                     " | ".join(cell.text for cell in row.cells)
@@ -229,12 +255,15 @@ def read_document_content(path: str):
             workbook = load_workbook(target, read_only=True, data_only=True)
             try:
                 sections = []
+                preview = [] if layout else None
                 for sheet in workbook.worksheets:
                     rows = [
-                        " | ".join("" if value is None else str(value) for value in row)
+                        ["" if value is None else str(value) for value in row]
                         for row in sheet.iter_rows(values_only=True)
                     ]
-                    sections.append(f"[{sheet.title}]\n" + "\n".join(rows))
+                    sections.append(f"[{sheet.title}]\n" + "\n".join(" | ".join(row) for row in rows))
+                    if layout:
+                        preview.append({"kind": "table", "title": sheet.title, "rows": rows})
                 content = "\n\n".join(sections)
             finally:
                 workbook.close()
@@ -243,12 +272,22 @@ def read_document_content(path: str):
             from pptx import Presentation
             presentation = Presentation(target)
             slides = []
+            preview = [] if layout else None
             for index, slide in enumerate(presentation.slides, 1):
                 texts = [
                     shape.text for shape in slide.shapes
                     if getattr(shape, "has_text_frame", False) and shape.text.strip()
                 ]
                 slides.append(f"[Slide {index}]\n" + "\n".join(texts))
+                if layout:
+                    preview.append({"kind": "slide", "title": f"Slide {index}", "shapes": [
+                        {"text": shape.text, "left": 100 * shape.left / presentation.slide_width,
+                         "top": 100 * shape.top / presentation.slide_height,
+                         "width": 100 * shape.width / presentation.slide_width,
+                         "height": 100 * shape.height / presentation.slide_height,
+                         "heading": slide.shapes.title is not None and shape.shape_id == slide.shapes.title.shape_id}
+                        for shape in slide.shapes if getattr(shape, "has_text_frame", False) and shape.text.strip()
+                    ], "aspect": presentation.slide_width / presentation.slide_height})
             content = "\n\n".join(slides)
 
         else:
@@ -264,6 +303,7 @@ def read_document_content(path: str):
         "path": target.relative_to(DOCUMENTS_ROOT).as_posix(),
         "size": size,
         "content": content,
+        **({"layout": preview} if layout else {}),
     }
 
 

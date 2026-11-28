@@ -310,7 +310,7 @@ class ExternalDevelopmentTests(unittest.TestCase):
             ({**valid, "unexpected": "private content"}, "1 unexpected top-level field"),
             ({**valid, "edits": {}}, "edits must be a JSON array"),
             ({**valid, "edits": [{}] * 41}, "41 edits supplied; maximum 40"),
-            ({**valid, "summary": "x" * 4001}, "summary is 4001 characters; maximum 4000"),
+            ({**valid, "summary": "x" * 12001}, "summary is 12001 characters; maximum 12000"),
             ({**valid, "summary": []}, "summary must be a JSON string"),
             ({**valid, "package_id": None}, "package_id must be a JSON string"),
             ([], "single JSON object"),
@@ -320,6 +320,17 @@ class ExternalDevelopmentTests(unittest.TestCase):
                 with self.assertRaisesRegex(CodingError, diagnostic):
                     decode_response(json.dumps(payload))
         self.assertEqual(decode_response(json.dumps(valid)), valid)
+
+    def test_long_summary_preserved_across_external_rounds(self):
+        package = self.export()
+        summary = "x" * 4146
+        result = self.submit(package, [], summary=summary)
+        self.assertEqual(result["status"], "no_changes")
+        self.assertEqual(result["summary"], summary)
+        next_package = self.export(package["session_id"])
+        payload = json.loads(next_package["prompt"].split("PROJECT DATA (JSON):\n", 1)[1])
+        self.assertEqual(payload["last_summary"], summary)
+        self.assertEqual(decode_response(self.response(next_package, [], summary="x" * 12000))["summary"], "x" * 12000)
 
     def test_json_fence_and_duplicate_keys(self):
         package = self.export()

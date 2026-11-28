@@ -264,6 +264,44 @@ class ExternalDevelopmentTests(unittest.TestCase):
         self.assertLessEqual(second["prompt_bytes"], 32000)
         self.assertEqual(first["workspace_version"], second["workspace_version"])
 
+
+    def test_feature_scope_prioritizes_unfinished_frontend_after_passing_checks(self):
+        filler = "// unrelated " + "x" * 140 + "\n"
+        self.base["static/app.js"] = (
+            filler * 600 +
+            "async function openConversation(id) {\n"
+            "  return await fetch('/api/conversations/' + id);\n"
+            "}\n"
+            "async function readProgressStream() {\n"
+            "  return 'stream reader';\n"
+            "}\n" + filler * 300
+        )
+        first = self.export(paths=["chat.py"])
+        with patch.object(FakeWorkspace, "result", {"exit_code": 0, "stdout": "OK", "stderr": ""}):
+            result = self.submit(first, [{"operation": "replace", "path": "chat.py",
+                                         "old": "False", "new": "True"}],
+                                 summary="Backend complete. Frontend is still blocked on static/app.js conversation-load path. Reuse readProgressStream. Follow-on milestone: chat.py internal tools.")
+        self.assertEqual(result["status"], "partial_review")
+        second = export_prompt(30, first["session_id"], profile="small", work_scope="feature",
+                               store=self.store, source=self.source, fetch=self.fetch)
+        package = json.loads(second["prompt"].split("PROJECT DATA (JSON):\n", 1)[1])
+        self.assertEqual(second["suggested_paths"][0], "static/app.js")
+        self.assertIn("Finish the remaining user-facing behavior", package["focus"])
+        self.assertIn("Complete as much of one coherent end-to-end feature", second["prompt"])
+        excerpts = "\n".join(e["text"] for e in package["source_excerpts"]["static/app.js"])
+        self.assertIn("async function openConversation(id)", excerpts)
+        self.assertIn("async function readProgressStream()", excerpts)
+        self.assertLessEqual(second["prompt_bytes"], 32000)
+        self.assertEqual(second["workspace_version"], result["workspace_version"])
+
+    def test_feature_scope_still_prioritizes_failed_checks(self):
+        first = self.export()
+        self.submit(first, [{"operation": "replace", "path": "chat.py", "old": "False", "new": "True"}])
+        second = export_prompt(30, first["session_id"], work_scope="feature",
+                               store=self.store, source=self.source, fetch=self.fetch)
+        self.assertIn("Repair the failed checks before adding features", second["prompt"])
+        self.assertNotIn("Complete as much of one coherent end-to-end feature", second["prompt"])
+
     def test_json_fence_and_duplicate_keys(self):
         package = self.export()
         raw = self.response(package, [])

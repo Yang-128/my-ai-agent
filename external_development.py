@@ -49,7 +49,7 @@ def read_session(number, identifier, store, source):
 def suggested_paths(issue, files, changed):
     body = issue["title"] + "\n" + issue["body"]
     direct = [path for path in files if re.search(
-        r"(?<![A-Za-z0-9_./-])" + re.escape(path) + r"(?![A-Za-z0-9_./-])", body)]
+        r"(?<![A-Za-z0-9_./-])" + re.escape(path) + r"(?![A-Za-z0-9_/-]|\.[A-Za-z0-9_])", body)]
     # Prefer actual referenced source and existing changes, not every project file.
     result = list(dict.fromkeys([*changed, *direct]))
     if not result:

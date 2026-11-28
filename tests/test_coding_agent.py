@@ -5,7 +5,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from coding_agent import execute_action, run_issue, rate_limit_delay, MODEL
+from coding_agent import execute_action, run_issue, rate_limit_delay, MODEL, issue_plan, report_plan_progress, pending_plan
 from coding_sandbox.policy import allowed_source
 from terminal_runner import make_patch, verified_snapshot, CodingError
 
@@ -48,6 +48,37 @@ def completion(args=None, text=None, tool="coding_action"):
 
 
 class CodingTests(unittest.TestCase):
+    def test_issue_directions_and_coverage(self):
+        issue = {"body": "## Implementation directions\n1. Old direction\n"
+                 "## Acceptance criteria\n- [x] Prior work\n- [ ] Test the new change\n"
+                 "## Next change on the coding branch\n1. Read chat.py\n2. Edit and test it\n"}
+        plan = issue_plan(issue)
+        self.assertEqual([step["id"] for step in plan], ["D1", "D2", "A1"])
+        self.assertEqual(plan[0]["text"], "Read chat.py")
+        reports = {}
+        self.assertIn("error", report_plan_progress(plan, reports,
+            {"step_id": "invented", "status": "reported_done", "evidence": "claim"}))
+        result = report_plan_progress(plan, reports,
+            {"step_id": "D1", "status": "reported_done", "evidence": "Read chat.py"})
+        self.assertFalse(result["verified"])
+        self.assertEqual(pending_plan(plan, reports), ["D2", "A1"])
+
+    def test_passing_checks_do_not_complete_unreported_issue_plan(self):
+        before = {"chat.py": "return False\n", "scripts/check.py": "pass\n"}
+        client = Mock()
+        client.chat.completions.create.side_effect = [
+            completion({"path": "chat.py", "old": "False", "new": "True"}, tool="coding_replace"),
+            completion(text="Done."), completion(text="Done."), completion(text="Done."),
+        ]
+        result = run_issue(123, threading.Event(), Mock(),
+            fetch=lambda _: {"number": 123, "title": "Fixture",
+                "body": "## Implementation directions\n1. Fix result\n## Acceptance criteria\n- [ ] Verify result"},
+            source=lambda: ("a" * 40, before), workspace_factory=FakeWorkspace,
+            client_factory=lambda: client, usage=Mock(), pause=Mock(return_value=True))
+        self.assertEqual(result["status"], "partial_review")
+        self.assertEqual(result["checks"]["exit_code"], 0)
+        self.assertEqual(result["remaining_plan_items"], ["D1", "A1"])
+
     def test_source_allowlist(self):
         for path in ("chat.py", "docs/README.md", "static/app.js", "tests/test_chat.py"):
             self.assertTrue(allowed_source(path))

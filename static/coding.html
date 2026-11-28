@@ -54,6 +54,11 @@ textarea{width:100%;min-height:120px;font:13px ui-monospace,monospace;resize:ver
 <option value="standard">Large package (320 KB)</option>
 </select></label>
 <p><small>These are conservative local package sizes, not verified web context limits. Compact modes automatically select relevant source excerpts and prioritize failing tests. If a web model rejects a prompt, choose Extra compact and regenerate from the same checkpoint.</small></p>
+<label>Work per response
+<select id="external-scope">
+<option value="feature">Complete a feature (recommended)</option>
+<option value="focused">Focused change or repair</option>
+</select></label>
 <label>Optional next milestone (automatic source selection uses this focus)<textarea id="external-focus" maxlength="2000" placeholder="Leave blank to automatically focus on failed checks or continue the issue"></textarea></label>
 <label><input type="checkbox" id="external-manual"> Use manual source selection instead of automatic dependency discovery</label>
 <label>Source paths (one per line; automatic mode displays selected files)<textarea id="external-files" placeholder="Automatically selected from issue, roadmap, imports and checkpoint" readonly></textarea></label>
@@ -72,9 +77,9 @@ textarea{width:100%;min-height:120px;font:13px ui-monospace,monospace;resize:ver
 <label><input type="checkbox" id="external-import-approved"> I approve saving these proposed edits and executing independent checks inside the isolated Docker worker. No changes will be applied to the live repository.</label>
 <button id="external-import">Import edits and test</button>
 <p id="external-status" role="status">Ready. Enter your local session token and issue above.</p>
-<pre id="external-checks" hidden></pre>
+<details id="external-details" hidden><summary>Development report and test results</summary><pre id="external-summary"></pre><pre id="external-checks" hidden></pre></details>
 </div>
 <div class="panel"><h2>Activity</h2><pre id="activity" aria-live="polite"></pre></div>
-<div id="review" class="panel" hidden><h2>Review proposed changes</h2><p id="result"></p><p id="commit"></p><pre id="patch"></pre><button id="download">Download patch</button><p><small>Check the original commit, review the diff and run your own tests before applying it. No changes have been applied to the live checkout.</small></p></div>
+<div id="review" class="panel" hidden><h2>Review proposed changes</h2><p id="result"></p><p id="commit"></p><details><summary>View full patch</summary><pre id="patch"></pre></details><button id="download">Download patch</button><p><small>Check the original commit, review the diff and run your own tests before applying it. No changes have been applied to the live checkout.</small></p></div>
 <script src="/static/coding.js"></script>
 </body></html>

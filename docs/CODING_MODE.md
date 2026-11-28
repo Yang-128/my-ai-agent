@@ -73,3 +73,17 @@ Run `.venv/bin/python -m unittest discover -s tests -p 'test_coding_agent.py' -v
 Also run `.venv/bin/python -m unittest discover -s tests -p 'test_coding_chain.py' -v` to verify cross-provider handoffs and checkpoint restoration. A real cross-provider run still requires testing.
 
 Before closing #135, test the actual local worker with a small open issue, record actual Gemini request/token counts, targeted/full test results and the reviewed patch. Independently verify filesystem/network isolation, cancellation and cleanup on macOS. Check remaining issue #135 acceptance criteria before marking complete.
+
+
+## Manual external web development
+
+The coding page also supports a manual workflow with any web conversation model. Enter the local coding token and an open issue number. Use **Load saved sessions only** to resume an existing checkpoint, without contacting API providers. Select the same session when switching web providers; select New coding session only to start independent work.
+
+1. Select the source paths (or leave them blank to use paths referenced in the issue and changed files). Approve prompt preparation, generate the latest prompt, and inspect the exported committed/project-workspace source for sensitive material.
+2. Copy the prompt into a web model of your choice, following its terms and free-tier limits. No browser automation, provider API key, or desktop installation is required.
+3. Paste the complete JSON object returned by the model, label the developer, and explicitly approve import and isolated testing.
+4. The host rejects responses for an older base commit, workspace hash, session ID, or prompt ID. An export invalidates older responses for the same session even if its files did not change. Edits must match existing exported text exactly or create an approved new source file. The protected check runner cannot be changed. Invalid edits are rejected atomically.
+5. The candidate is saved locally before offline Docker tests run; failed tests and blocked responses are retained for the next prompt. The next prompt uses the latest saved files and diagnostics, regardless of provider. If a web model is exhausted, simply generate another prompt for the same session and paste it into a different provider.
+6. Review the accumulated patch against the recorded base commit. Passing standard tests do not prove that all issue requirements are complete. Nothing is applied, committed, or pushed automatically.
+
+The snapshot is the latest saved version within the chosen session, not an automatic fetch/rebase of GitHub main. A changed checkout commit requires the matching original checkout or a separate new session. Source selection is capped at 30 files and 320 KB per prompt; narrow it if a provider has a smaller context limit. Only manually selected, reviewed code should be shared. Session locking is within the local coding server; run one coding server against the checkpoint directory at a time.

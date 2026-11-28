@@ -18,6 +18,7 @@ async function api(path, method = "GET", body) {
 }
 function busy(value) {
   byId("start").disabled = value;
+  for (const id of ["external-sessions", "external-export", "external-import", "external-files", "external-provider", "external-response", "external-export-approved", "external-import-approved"]) byId(id).disabled = value;
   byId("stop").disabled = !value;
   byId("token").disabled = value;
   byId("issue").disabled = value;
@@ -157,4 +158,112 @@ byId("download").addEventListener("click", () => {
   link.download = "issue-fix-" + sourceCommit.slice(0, 12) + ".patch";
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+let externalBusy = false;
+function lockExternal(value) {
+  externalBusy = value;
+  busy(value);
+  byId("stop").disabled = true;
+}
+function externalIssue() {
+  const issue = Number(byId("issue").value);
+  if (!Number.isInteger(issue) || issue < 1 || issue > 1000000) throw new Error("Enter a valid issue number.");
+  activeToken = byId("token").value.trim();
+  return issue;
+}
+function clearExternalPrompt() {
+  byId("external-prompt").value = "";
+  byId("external-copy").disabled = true;
+  byId("external-version").textContent = "";
+  byId("external-import-approved").checked = false;
+}
+byId("checkpoint").addEventListener("change", clearExternalPrompt);
+byId("issue").addEventListener("change", clearExternalPrompt);
+byId("external-sessions").addEventListener("click", async () => {
+  if (externalBusy) return;
+  activeToken = byId("token").value.trim();
+  lockExternal(true);
+  try {
+    await refreshCheckpoints(byId("checkpoint").value);
+    byId("external-status").textContent = "Saved sessions loaded. Select the latest checkpoint for your issue.";
+  } catch (error) {
+    byId("external-status").textContent = error.message;
+  } finally { lockExternal(false); }
+});
+byId("external-export").addEventListener("click", async () => {
+  if (externalBusy) return;
+  try {
+    const issue = externalIssue();
+    if (!byId("external-export-approved").checked) throw new Error("Approve preparing the selected source first.");
+    lockExternal(true);
+    const paths = byId("external-files").value.split(/\n/).map(x => x.trim()).filter(Boolean);
+    const result = await api("/api/coding/external/export", "POST", {
+      issue, checkpoint_id: byId("checkpoint").value || null,
+      paths: paths.length ? paths : null, approved: true
+    });
+    await refreshCheckpoints(result.session_id);
+    byId("external-files").value = result.paths.join("\n");
+    byId("external-available").textContent = result.available_paths.join("\n");
+    byId("external-prompt").value = result.prompt;
+    byId("external-version").textContent = "Base: " + result.base_commit + "\nWorkspace: " + result.workspace_version +
+      "\nPrompt: " + result.package_id + "\nChanged files: " + (result.changed_paths.join(", ") || "none");
+    byId("external-copy").disabled = false;
+    byId("external-response").value = "";
+    byId("external-import-approved").checked = false;
+    byId("external-export-approved").checked = false;
+    byId("external-checks").hidden = !result.checks;
+    byId("external-checks").textContent = result.checks ? JSON.stringify(result.checks, null, 2) : "";
+    byId("external-status").textContent = "Latest prompt generated for issue #" + issue + ". Review, copy, and paste into any web developer.";
+  } catch (error) {
+    byId("external-status").textContent = error.message;
+  } finally { lockExternal(false); }
+});
+byId("external-copy").addEventListener("click", async () => {
+  const field = byId("external-prompt");
+  try {
+    await navigator.clipboard.writeText(field.value);
+    byId("external-status").textContent = "Prompt copied. Paste into your chosen provider.";
+  } catch (_) {
+    field.focus();
+    field.select();
+    byId("external-status").textContent = "Copy the selected prompt manually.";
+  }
+});
+byId("external-import").addEventListener("click", async () => {
+  if (externalBusy) return;
+  try {
+    const issue = externalIssue();
+    const checkpoint = byId("checkpoint").value;
+    if (!checkpoint || !byId("external-import-approved").checked) throw new Error("Select the saved session and approve isolated testing.");
+    const response = byId("external-response").value.trim();
+    const provider = byId("external-provider").value.trim();
+    if (!response || !provider) throw new Error("Enter the provider label and paste its complete JSON response.");
+    lockExternal(true);
+    byId("external-status").textContent = "Validating response and running isolated checks…";
+    const result = await api("/api/coding/external/import", "POST", {
+      issue, checkpoint_id: checkpoint, response, provider, approved: true
+    });
+    await refreshCheckpoints(result.checkpoint_id);
+    clearExternalPrompt();
+    byId("external-response").value = "";
+    byId("external-version").textContent = "Base: " + result.source_commit + "\nLatest workspace: " + result.workspace_version +
+      "\nChanged files: " + (result.changed_paths.join(", ") || "none");
+    byId("external-status").textContent = (result.message || result.status) + " — " + result.summary +
+      "\nGenerate the next prompt from this same saved session.";
+    byId("external-checks").hidden = !result.checks;
+    byId("external-checks").textContent = result.checks ? JSON.stringify(result.checks, null, 2) : "";
+    patch = result.patch || "";
+    sourceCommit = result.source_commit || "";
+    byId("review").hidden = !patch;
+    byId("result").textContent = result.checks?.exit_code === 0 ?
+      "Standard checks passed. Issue coverage still requires review." : "Saved proposed changes are not verified.";
+    byId("commit").textContent = "Source commit: " + sourceCommit;
+    byId("patch").textContent = patch;
+  } catch (error) {
+    byId("external-status").textContent = error.message + " Reload saved sessions if the request was interrupted.";
+  } finally {
+    byId("external-import-approved").checked = false;
+    lockExternal(false);
+  }
 });

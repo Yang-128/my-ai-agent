@@ -10,7 +10,10 @@ PROVIDER = "gemini"
 MODEL = "gemini-3.5-flash-lite"
 REPO = "Yang-128/my-ai-agent"
 MAX_REQUESTS = 20
-MAX_REPORTED_TOKENS = 180_000
+MAX_REPORTED_TOKENS = 400_000
+MIN_REQUEST_INTERVAL = 5.5  # about 11 requests/minute, leaving headroom below 15
+MAX_RATE_RETRIES = 2
+MAX_RETRY_DELAY = 90
 MAX_CONTEXT_CHARS = 175_000
 MAX_SECONDS = 600
 
@@ -111,8 +114,59 @@ def context_for(files):
     return "\n\n".join(sections)
 
 
+def wait_for_delay(stop, seconds, deadline, emit, label):
+    """Cancellable wait; never wait beyond the iteration budget."""
+    if stop.is_set():
+        raise CodingCancelled("Coding run cancelled.")
+    if time.monotonic() + seconds >= deadline:
+        return False
+    if seconds > 0:
+        emit("status", {"message": f"{label}; waiting {seconds:.1f}s."})
+        if stop.wait(seconds):
+            raise CodingCancelled("Coding run cancelled.")
+    return True
+
+
+def rate_limit_delay(error):
+    """Use structured quota details where available; never log raw provider errors."""
+    body = getattr(error, "body", None)
+    if isinstance(body, dict):
+        body = body.get("error", body)
+    details = body.get("details", []) if isinstance(body, dict) else []
+    delays = []
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", {})
+    try:
+        delays.append(float(headers.get("Retry-After", "")))
+    except (TypeError, ValueError):
+        pass
+    for detail in details if isinstance(details, list) else []:
+        if not isinstance(detail, dict):
+            continue
+        violations = detail.get("violations", [])
+        for violation in violations if isinstance(violations, list) else []:
+            if isinstance(violation, dict):
+                quota = str(violation.get("quotaId", "")) + str(violation.get("quotaMetric", ""))
+                quota = quota.lower().replace("_", "").replace("-", "")
+                if "perday" in quota or "daily" in quota:
+                    return None
+        value = detail.get("retryDelay")
+        if isinstance(value, str) and value.endswith("s"):
+            try:
+                delays.append(float(value[:-1]))
+            except ValueError:
+                pass
+    # Invalid/unknown values use a full rolling-window cooldown; do not retry
+    # long quota resets or unbounded delays.
+    import math
+    valid = [d for d in delays if math.isfinite(d) and d >= 0]
+    delay = max([65.0, *valid])
+    return delay if delay <= MAX_RETRY_DELAY else None
+
+
 def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
-              workspace_factory=DockerWorkspace, client_factory=None, usage=None):
+              workspace_factory=DockerWorkspace, client_factory=None, usage=None,
+              pause=wait_for_delay):
     """Return a host-computed patch, never mutate the live checkout."""
     if client_factory is None:
         from providers import get_provider_client
@@ -129,7 +183,9 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
                 record_usage(PROVIDER, MODEL, tokens_used=input_tokens + output_tokens)
 
     start = time.monotonic()
-    totals = {"input": 0, "output": 0, "requests": 0}
+    totals = {"input": 0, "output": 0, "requests": 0, "attempts": 0, "rate_retries": 0}
+    deadline = start + MAX_SECONDS
+    next_attempt = start
     if stop.is_set():
         raise CodingCancelled("Coding run cancelled.")
     issue = fetch(number)
@@ -147,7 +203,7 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
     try:
         with workspace_factory(before, stop) as workspace:
             emit("status", {"message": "Isolated worker started; no host files or network mounted."})
-            for _ in range(MAX_REQUESTS):
+            while totals["attempts"] < MAX_REQUESTS:
                 if stop.is_set():
                     raise CodingCancelled("Coding run cancelled.")
                 if (time.monotonic() - start > MAX_SECONDS
@@ -155,11 +211,34 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
                         or len(json.dumps(messages, ensure_ascii=False)) > MAX_CONTEXT_CHARS):
                     reason = "coding budget reached"
                     break
+                delay = max(0.0, next_attempt - time.monotonic())
+                if not pause(stop, delay, deadline, emit, "Pacing Gemini requests"):
+                    reason = "coding time budget reached"
+                    break
+                totals["attempts"] += 1
+                next_attempt = time.monotonic() + MIN_REQUEST_INTERVAL
+                try:
+                    response = client.chat.completions.create(
+                        model=MODEL, messages=messages, tools=TOOLS, tool_choice="auto",
+                        max_tokens=4096, temperature=0,
+                    )
+                except Exception as error:
+                    if getattr(error, "status_code", None) != 429:
+                        raise
+                    retry_delay = rate_limit_delay(error)
+                    if (retry_delay is None or totals["rate_retries"] >= MAX_RATE_RETRIES
+                            or totals["attempts"] >= MAX_REQUESTS):
+                        reason = "Gemini rate limit; partial work preserved for review"
+                        emit("status", {"message": reason})
+                        break
+                    totals["rate_retries"] += 1
+                    emit("usage", dict(totals))
+                    if not pause(stop, retry_delay, deadline, emit, "Gemini rate limited; retaining workspace"):
+                        reason = "Gemini rate limit exceeds remaining time budget"
+                        break
+                    # Retry the inference only. No tool call was returned or executed.
+                    continue
                 totals["requests"] += 1
-                response = client.chat.completions.create(
-                    model=MODEL, messages=messages, tools=TOOLS, tool_choice="auto",
-                    max_tokens=4096, temperature=0,
-                )
                 reported = response.usage
                 incoming = int(getattr(reported, "prompt_tokens", 0) or 0)
                 outgoing = int(getattr(reported, "completion_tokens", 0) or 0)
@@ -217,7 +296,8 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
             if workspace.snapshot() != after:
                 raise CodingError("Source changed during final checks; no verified patch is available.")
             passed = checks.get("exit_code") == 0
-            return {"status": "review" if passed else "checks_failed", "source_commit": revision,
+            return {"status": ("review" if reason == "model finished" else "partial_review")
+                    if passed else "checks_failed", "source_commit": revision,
                     "patch": patch, "summary": summary, "reason": reason, "usage": totals, "checks": checks,
                     "changed_paths": sorted(p for p in before.keys() | after.keys()
                                             if before.get(p) != after.get(p))}

@@ -113,6 +113,28 @@ class PDFGenerationTests(unittest.TestCase):
                 with self.subTest(name=name):
                     self.assertIn(expected, app.read_document_content(name)["content"])
 
+    def test_unreadable_documents_report_preview_failure(self):
+        from fastapi.testclient import TestClient
+        from pypdf import PdfWriter
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            app, "DOCUMENTS_ROOT", Path(directory)
+        ), TestClient(app.app) as client:
+            root = Path(directory)
+            writer = PdfWriter()
+            writer.add_blank_page(width=100, height=100)
+            writer.write(root / "blank.pdf")
+            (root / "text.txt").write_text("Example", encoding="utf-8-sig")
+            (root / "binary.txt").write_bytes(b"A\x00B")
+            for name in ("bad.docx", "bad.xlsx", "bad.pptx"):
+                (root / name).write_bytes(b"invalid Office archive")
+            for name in ("blank.pdf", "binary.txt", "bad.docx", "bad.xlsx", "bad.pptx"):
+                with self.subTest(name=name):
+                    params = {"path": name}
+                    self.assertEqual(client.get("/api/documents/content", params=params).status_code, 415)
+                    self.assertEqual(client.get("/api/documents/download", params=params).status_code, 200)
+            self.assertEqual(app.read_document_content("text.txt")["content"], "Example")
+
 
 if __name__ == "__main__":
     unittest.main()

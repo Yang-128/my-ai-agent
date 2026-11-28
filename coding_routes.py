@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from coding_agent import MODEL
 from coding_chain import catalog, run_chain, SUPPORTED, MAX_STAGES
 from coding_checkpoints import CheckpointStore
+from external_development import export_prompt, import_response
 from runtime import RESOURCE_DIR
 from terminal_runner import CodingError, CodingCancelled
 
@@ -48,6 +49,48 @@ class StartRequest(BaseModel):
     approved: bool = False
     models: list[ModelSelection] = Field(default_factory=list, max_length=MAX_STAGES)
     checkpoint_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+
+
+class ExternalExportRequest(BaseModel):
+    issue: int = Field(ge=1, le=1_000_000)
+    checkpoint_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    paths: list[str] | None = Field(default=None, max_length=30)
+    approved: bool = False
+
+
+class ExternalImportRequest(BaseModel):
+    issue: int = Field(ge=1, le=1_000_000)
+    checkpoint_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    response: str = Field(min_length=1, max_length=450_000)
+    provider: str = Field(min_length=1, max_length=60)
+    approved: bool = False
+
+
+def external_operation(request, approved, operation):
+    local_request(request)
+    if not approved:
+        raise HTTPException(422, "Explicit external development approval required.")
+    with LOCK:
+        if any(run["status"] == "running" for run in RUNS.values()):
+            raise HTTPException(409, "Stop the active API coding run first.")
+        try:
+            return operation()
+        except CodingError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(500, f"External development failed ({type(exc).__name__}). Reload saved sessions.") from exc
+
+
+@router.post("/api/coding/external/export")
+def external_export(request: Request, body: ExternalExportRequest):
+    return external_operation(request, body.approved,
+        lambda: export_prompt(body.issue, body.checkpoint_id, body.paths))
+
+
+@router.post("/api/coding/external/import")
+def external_import(request: Request, body: ExternalImportRequest):
+    return external_operation(request, body.approved,
+        lambda: import_response(body.issue, body.checkpoint_id, body.response, body.provider))
 
 
 @router.get("/coding")

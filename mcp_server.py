@@ -989,12 +989,34 @@ def mac_create_document(
                 story.append(Paragraph(escape(stripped), styles["BodyText"]))
                 story.append(Spacer(1, 4))
 
-        pdf = SimpleDocTemplate(
-            str(target), pagesize=LETTER,
-            rightMargin=0.8 * inch, leftMargin=0.8 * inch,
-            topMargin=0.75 * inch, bottomMargin=0.75 * inch
-        )
-        pdf.build(story)
+        from tempfile import TemporaryDirectory
+        from pypdf import PdfReader, errors as pypdf_errors
+
+        if not content.strip():
+            raise ValueError("PDF content is empty.")
+        with TemporaryDirectory(prefix=".pdf-", dir=destination_folder) as staging:
+            staged = Path(staging) / filename
+            pdf = SimpleDocTemplate(
+                str(staged), pagesize=LETTER,
+                rightMargin=0.8 * inch, leftMargin=0.8 * inch,
+                topMargin=0.75 * inch, bottomMargin=0.75 * inch,
+            )
+            pdf.build(story)
+            try:
+                with staged.open("rb") as stream:
+                    if stream.read(5) != b"%PDF-":
+                        raise ValueError("Invalid PDF signature.")
+                    stream.seek(0)
+                    reader = PdfReader(stream, strict=True)
+                    if not any((page.extract_text() or "").strip() for page in reader.pages):
+                        raise ValueError("The PDF has no readable text.")
+            except (OSError, ValueError, pypdf_errors.PdfReadError) as error:
+                raise RuntimeError(f"Could not verify PDF for {target}: {error}") from error
+            if overwrite:
+                staged.replace(target)
+            else:
+                target.hardlink_to(staged)
+        return f"Document created successfully: {target}"
 
     elif fmt == "xlsx":
         from openpyxl import Workbook
@@ -1063,17 +1085,6 @@ def mac_create_document(
 
     if not target.is_file() or target.stat().st_size == 0:
         raise RuntimeError(f"Document generation failed: output is missing or empty: {target}")
-
-    if fmt == "pdf":
-        if not target.read_bytes().startswith(b"%PDF-"):
-            raise RuntimeError(f"Document generation failed: invalid PDF signature: {target}")
-        from pypdf import PdfReader
-        try:
-            reader = PdfReader(str(target), strict=True)
-            if not reader.pages:
-                raise RuntimeError("Generated PDF contains no pages.")
-        except Exception as exc:
-            raise RuntimeError(f"Generated PDF failed structural verification: {exc}") from exc
 
     return f"Document created successfully: {target}"
 

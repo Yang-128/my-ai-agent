@@ -41,9 +41,23 @@ textarea{width:100%;min-height:120px;font:13px ui-monospace,monospace;resize:ver
 <p>Work with a free web conversation manually. No provider API keys, desktop app, or automatic browser access required.</p>
 <button id="external-sessions">Load saved sessions only</button>
 <p><small>Use the issue and checkpoint selector above. Resume the same checkpoint when switching providers. New sessions use this checkout's committed HEAD; external sessions retain their original locally available base commit.</small></p>
-<label>Optional next milestone (automatic source selection uses this focus)<textarea id="external-focus" maxlength="2000" placeholder="Recover durable execution state after restart"></textarea></label>
+<label>Target web model
+<select id="external-profile">
+<option value="compact">Automatic compact (64 KB)</option>
+<option value="deepseek">DeepSeek (64 KB)</option>
+<option value="small">Extra compact (32 KB)</option>
+<option value="claude">Claude (120 KB)</option>
+<option value="chatgpt">ChatGPT (96 KB)</option>
+<option value="gemini">Gemini (120 KB)</option>
+<option value="kimi">Kimi (96 KB)</option>
+<option value="qwen">Qwen (64 KB)</option>
+<option value="standard">Large package (320 KB)</option>
+</select></label>
+<p><small>These are conservative local package sizes, not verified web context limits. Compact modes automatically select relevant source excerpts and prioritize failing tests. If a web model rejects a prompt, choose Extra compact and regenerate from the same checkpoint.</small></p>
+<label>Optional next milestone (automatic source selection uses this focus)<textarea id="external-focus" maxlength="2000" placeholder="Leave blank to automatically focus on failed checks or continue the issue"></textarea></label>
 <label><input type="checkbox" id="external-manual"> Use manual source selection instead of automatic dependency discovery</label>
 <label>Source paths (one per line; automatic mode displays selected files)<textarea id="external-files" placeholder="Automatically selected from issue, roadmap, imports and checkpoint" readonly></textarea></label>
+<pre id="external-budget"></pre>
 <pre id="external-omitted" hidden></pre>
 <details><summary>Available source paths</summary><pre id="external-available"></pre></details>
 <label><input type="checkbox" id="external-export-approved"> I authorize preparing the selected project source for external sharing. I will review the generated prompt before pasting it into a provider.</label>

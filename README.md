@@ -78,6 +78,10 @@ Each provider card names a representative free model, its practical strengths, a
 
 Open **Connect an API key** for official provider links and the matching environment variable. Save your key in the server’s local `.env` file and restart the app. Packaged installations use the app’s data directory for this file.
 
+## Experimental GitHub issue coding (local development only)
+
+See [the coding mode guide](docs/CODING_MODE.md). The first version uses the configured Gemini 3.5 Flash-Lite account to retrieve an open issue, inspect and edit a committed source snapshot in a local isolated Docker worker, run checks and produce a reviewable patch. It is opt-in and does not apply patches, commit, push, or restart the live application. Docker setup and an explicitly authorized local coding session are required.
+
 ## Testing
 
 After installing the project requirements, run the checks with Node.js 22 on your PATH.

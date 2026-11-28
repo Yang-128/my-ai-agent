@@ -92,6 +92,18 @@ For a live MCP integration smoke test, use the project environment to discover t
 
 ## Developer documentation
 
+New contributors and AI coding assistants should start with [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md). [AGENTS.md](AGENTS.md) points to the same model-independent workflow.
+
+To transfer project context to a chat model without repository access, export a committed, minimal Markdown packet:
+
+    python3 scripts/export_ai_context.py
+
+With the GitHub CLI installed and authenticated, add the live issue index, the selected issue, and relevant documentation:
+
+    python3 scripts/export_ai_context.py --roadmap --issue 133 --doc feature
+
+Review the packet before sharing. It excludes uncommitted code and runtime credentials; issue text and committed documentation may still contain information that should not be shared. Replace 133 with the task you are working on.
+
 - [Documentation index](docs/README.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Repository map](docs/REPOSITORY_MAP.md)

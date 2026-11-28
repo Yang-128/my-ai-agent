@@ -172,6 +172,39 @@ function externalIssue() {
   activeToken = byId("token").value.trim();
   return issue;
 }
+function showIssueRoadmap(roadmap, checksPassed) {
+  const section = byId("external-roadmap");
+  section.hidden = !roadmap;
+  if (!roadmap) return;
+  const current = (roadmap.items || []).find(item => item.id === roadmap.current_id);
+  byId("external-current-task").textContent = "Current / next task: " + roadmap.current_task;
+  const count = roadmap.reported_done || 0;
+  const total = roadmap.total || 0;
+  byId("external-coverage").textContent = count + " / " + total + " requirements reported complete (not independently verified)" +
+    (checksPassed ? " · Standard checks passed" : "");
+  const bar = byId("external-coverage-bar");
+  bar.max = Math.max(1, total);
+  bar.value = count;
+  bar.hidden = !total;
+  const list = byId("external-roadmap-items");
+  list.replaceChildren();
+  for (const item of roadmap.items || []) {
+    const li = document.createElement("li");
+    const label = item.status === "reported_done" ? "Reported complete" :
+      item.status === "blocked" ? "Blocked" : item.status === "pending" ? "Pending" : "Not yet reported";
+    li.textContent = (item === current ? "CURRENT — " : "") + label + " · " + item.text;
+    if (item.evidence) {
+      const evidence = document.createElement("p");
+      evidence.textContent = item.evidence;
+      li.appendChild(evidence);
+    }
+    list.appendChild(li);
+  }
+}
+function showSavedRoadmap() {
+  const saved = checkpoints.find(c => c.id === byId("checkpoint").value);
+  showIssueRoadmap(saved?.issue_progress, saved?.checks_passed);
+}
 function showExternalReport(summary, checks) {
   const details = byId("external-details");
   details.open = false;
@@ -186,6 +219,9 @@ function externalNextStatus(result) {
     return "Checks failed. Generate latest prompt to repair this session.";
   if (result.status === "untested")
     return "Checks could not finish. Review test details before continuing.";
+  if (result.checks?.exit_code === 0 && result.issue_progress?.total > 0 &&
+      result.issue_progress.reported_done === result.issue_progress.total)
+    return "All requirements reported complete. Review the patch and verify the feature before publication.";
   if (result.status === "no_changes")
     return "No edits this round. Generate latest prompt to continue with updated context.";
   if (result.status === "partial_review" && result.checks?.exit_code === 0)
@@ -201,8 +237,8 @@ function clearExternalPrompt() {
 byId("external-manual").addEventListener("change", () => {
   byId("external-files").readOnly = !byId("external-manual").checked;
 });
-byId("checkpoint").addEventListener("change", clearExternalPrompt);
-byId("issue").addEventListener("change", clearExternalPrompt);
+byId("checkpoint").addEventListener("change", () => { clearExternalPrompt(); showSavedRoadmap(); });
+byId("issue").addEventListener("change", () => { clearExternalPrompt(); showIssueRoadmap(null); });
 byId("external-sessions").addEventListener("click", async () => {
   if (externalBusy) return;
   activeToken = byId("token").value.trim();
@@ -216,6 +252,7 @@ byId("external-sessions").addEventListener("click", async () => {
     }
     clearExternalPrompt();
     showExternalReport("", null);
+    showSavedRoadmap();
     byId("external-status").textContent = "Saved sessions loaded. Select your existing checkpoint.";
   } catch (error) {
     byId("external-status").textContent = error.message;
@@ -251,6 +288,7 @@ byId("external-export").addEventListener("click", async () => {
     byId("external-import-approved").checked = false;
     byId("external-export-approved").checked = false;
     showExternalReport("", result.checks);
+    showIssueRoadmap(result.issue_progress, result.checks?.exit_code === 0);
     byId("external-status").textContent = "Latest prompt generated for issue #" + issue + ". Review, copy, and paste into any web developer.";
   } catch (error) {
     byId("external-status").textContent = error.message;
@@ -296,6 +334,7 @@ byId("external-import").addEventListener("click", async () => {
     byId("external-version").textContent = "Base: " + result.source_commit + "\nLatest workspace: " + result.workspace_version +
       "\nChanged files: " + (result.changed_paths.join(", ") || "none");
     byId("external-status").textContent = externalNextStatus(result);
+    showIssueRoadmap(result.issue_progress, result.checks?.exit_code === 0);
     showExternalReport([result.message, result.summary].filter(Boolean).join("\n\n"), result.checks);
     patch = result.patch || "";
     sourceCommit = result.source_commit || "";

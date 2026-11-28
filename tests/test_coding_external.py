@@ -225,6 +225,45 @@ class ExternalDevelopmentTests(unittest.TestCase):
         self.assertEqual(second["paths"][0], "storage.py")
         self.assertEqual(second["workspace_version"], first["workspace_version"])
 
+
+    def test_compact_js_handoff_exports_named_functions_not_deferred_work(self):
+        filler = "// unrelated source " + "x" * 140 + "\n"
+        self.base["static/app.js"] = (
+            filler * 440 +
+            "async function openConversation(id) {\n"
+            "  await loadConversation(id);\n"
+            "}\n"
+            "async function sendMessage(text) {\n"
+            "  await fetch('/api/chat');\n"
+            "  await readProgressStream();\n"
+            "}\n"
+            "async function readProgressStream() {\n"
+            "  return 'stream reader';\n"
+            "}\n" + filler * 350
+        )
+        self.base["chat.py"] = filler.replace("//", "#") * 600
+        self.base["docs/CHAT_PROGRESS.md"] = "Reload recovery is not implemented.\n"
+        self.fetch = lambda n: {"number": n, "title": "Progress", "body": "Improve chat.py and static/app.js."}
+        first = self.export(paths=["docs/CHAT_PROGRESS.md"])
+        self.submit(first, [], summary=(
+            "Blocked. Exact files needed: static/app.js with sendMessage, "
+            "readProgressStream and conversation-load path; docs/CHAT_PROGRESS.md. "
+            "Follow-on milestone: chat.py in full."
+        ))
+        second = export_prompt(30, first["session_id"], profile="small", store=self.store,
+                               source=self.source, fetch=self.fetch)
+        self.assertIn("static/app.js", second["partial_paths"])
+        self.assertIn("docs/CHAT_PROGRESS.md", second["paths"])
+        package = json.loads(second["prompt"].split("PROJECT DATA (JSON):\n", 1)[1])
+        excerpts = "\n".join(e["text"] for e in package["source_excerpts"]["static/app.js"])
+        self.assertIn("async function sendMessage(text)", excerpts)
+        self.assertIn("await readProgressStream();", excerpts)
+        self.assertIn("async function readProgressStream()", excerpts)
+        self.assertIn("return 'stream reader';", excerpts)
+        self.assertIn("async function openConversation(id)", excerpts)
+        self.assertLessEqual(second["prompt_bytes"], 32000)
+        self.assertEqual(first["workspace_version"], second["workspace_version"])
+
     def test_json_fence_and_duplicate_keys(self):
         package = self.export()
         raw = self.response(package, [])

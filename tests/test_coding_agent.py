@@ -37,9 +37,9 @@ class FakeWorkspace:
         return dict(self.files)
 
 
-def completion(args=None, text=None):
+def completion(args=None, text=None, tool="coding_action"):
     call = [] if args is None else [SimpleNamespace(
-        id="call-1", function=SimpleNamespace(name="coding_action", arguments=json.dumps(args))
+        id="call-1", function=SimpleNamespace(name=tool, arguments=json.dumps(args))
     )]
     message = Mock(content=text, tool_calls=call)
     message.model_dump.return_value = {"role": "assistant", "content": text or ""}
@@ -148,6 +148,40 @@ class CodingTests(unittest.TestCase):
         self.assertIsNone(rate_limit_delay(error))
         error.response.headers = {"Retry-After": "70"}
         self.assertEqual(rate_limit_delay(error), 70)
+
+    def test_no_change_completion_is_rejected_then_dedicated_edit_works(self):
+        before = {"chat.py": "return False\n", "scripts/check.py": "pass\n"}
+        client = Mock()
+        client.chat.completions.create.side_effect = [
+            completion(text="I can provide the changes if requested."),
+            completion({"path": "chat.py", "old": "False", "new": "True"}, tool="coding_replace"),
+            completion(text="Implemented."),
+        ]
+        emit = Mock()
+        result = run_issue(123, threading.Event(), emit,
+                           fetch=lambda _: {"number": 123, "title": "Fixture", "body": "Fix result."},
+                           source=lambda: ("a" * 40, before),
+                           workspace_factory=FakeWorkspace,
+                           client_factory=lambda: client, usage=Mock(), pause=Mock(return_value=True))
+        self.assertEqual(result["status"], "review")
+        self.assertIn("+return True", result["patch"])
+        self.assertEqual(result["usage"]["requests"], 3)
+        self.assertTrue(any("Completion rejected" in str(c) for c in emit.call_args_list))
+
+    def test_unproductive_model_stops_after_bounded_reminders(self):
+        before = {"chat.py": "return False\n", "scripts/check.py": "pass\n"}
+        client = Mock()
+        client.chat.completions.create.side_effect = [
+            completion(text="No edits."), completion(text="No edits."), completion(text="No edits."),
+        ]
+        result = run_issue(123, threading.Event(), Mock(),
+                           fetch=lambda _: {"number": 123, "title": "Fixture", "body": "Fix result."},
+                           source=lambda: ("a" * 40, before),
+                           workspace_factory=FakeWorkspace,
+                           client_factory=lambda: client, usage=Mock(), pause=Mock(return_value=True))
+        self.assertEqual(result["status"], "no_changes")
+        self.assertEqual(result["reason"], "model stopped without implementing a change")
+        self.assertEqual(client.chat.completions.create.call_count, 3)
 
 
 if __name__ == "__main__":

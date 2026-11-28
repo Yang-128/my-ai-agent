@@ -40,6 +40,7 @@ def safe_path(value):
 
 def file_purpose(name):
     purposes = {
+        "docs/EXTENSION_MANIFEST.md": "Extension package format and manifest contract.",
         "CONTRIBUTING.md": "Contribution workflow and bug reporting.",
         ".github/pull_request_template.md": "Pull request checklist.",
         "calculations.py": "Decimal calculations and unit conversions.",

@@ -8,6 +8,15 @@ const imageInput = document.getElementById("image-input");
 const imagePreview = document.getElementById("image-preview");
 const attachImageButton = document.getElementById("attach-image-button");
 
+let pendingDocument = null;
+function setChatDocument(path) {
+  pendingDocument = path;
+  const attachment = document.getElementById("chat-document");
+  attachment.hidden = !path;
+  attachment.querySelector("span").textContent = path || "";
+}
+document.getElementById("remove-chat-document").onclick = () => setChatDocument(null);
+
 let pendingImages = [];
 const MAX_IMAGES = 4;
 const MAX_IMAGE_SIZE = 6 * 1024 * 1024;
@@ -1860,6 +1869,7 @@ async function openConversation(id) {
       button.setAttribute("aria-current", active ? "page" : "false");
     });
   }
+  if (currentConversationId !== id) setChatDocument(null);
   currentConversationId = id;
   messages.innerHTML = "";
   welcome.style.display = data.messages.length ? "none" : "block";
@@ -1889,6 +1899,7 @@ async function newChat() {
   }
 
   const data = await response.json();
+  setChatDocument(null);
   currentConversationId = data.id;
 
   messages.innerHTML = "";
@@ -1912,6 +1923,7 @@ async function sendMessage(text) {
   }
 
   const userMessage = text.trim();
+  const documentPath = pendingDocument;
   const attachedFiles = [...pendingImages];
 
   if (attachedFiles.length) {
@@ -1953,6 +1965,7 @@ async function sendMessage(text) {
         conversation_id: currentConversationId,
         message: userMessage,
         images: imageData,
+        document_path: documentPath,
         provider: selectedProvider,
         model: selectedModel
       })
@@ -1962,6 +1975,8 @@ async function sendMessage(text) {
       const data = await response.json();
       throw new Error(data.detail || "The request failed");
     }
+
+    if (pendingDocument === documentPath) setChatDocument(null);
 
     if (!response.body) {
       throw new Error("Streaming is not supported by this browser");
@@ -2779,7 +2794,17 @@ async function previewFile(path) {
     format.className = "file-preview-format";
     format.textContent = extension.toUpperCase() + " · Text preview";
 
-    preview.append(heading, download, format, content);
+    const attach = document.createElement("button");
+    attach.type = "button";
+    attach.textContent = "Attach text to chat";
+    attach.disabled = data.content.length > 12000;
+    if (attach.disabled) attach.title = "Chat attachments are limited to 12,000 characters.";
+    attach.onclick = () => {
+      setChatDocument(data.path);
+      document.querySelector('#mobile-navigation [data-page="chat"]').click();
+      input.focus();
+    };
+    preview.append(heading, download, attach, format, content);
   } catch (error) {
     if (request === previewRequest) status.textContent = "Could not preview file: " + error.message;
   }

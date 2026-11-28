@@ -64,7 +64,7 @@ There is no automatic image-to-text fallback. The application does not first sen
 
 ## Files, tools, and free models
 
-**Files** opens My AI Agent Documents. Select a folder to browse it or a file to preview it. Use **Download original** to open the actual file in an app, including formats that do not have a text preview. **Tools** groups related actions together. Expand a group to enable or disable it, or expand an individual operation to inspect its parameters and try it. The chat picker uses the same groups and respects disabled operations.
+**Files** opens My AI Agent Documents. Select a folder to browse it or a file to preview it. Use **Attach text to chat** to send extracted text from one document with your next message. The selected model provider receives that text. Use **Download original** to open the actual file in an app, including formats that do not have a text preview. **Tools** groups related actions together. Expand a group to enable or disable it, or expand an individual operation to inspect its parameters and try it. The chat picker uses the same groups and respects disabled operations.
 
 The provider picker’s **Find new provider…** checks the Models.dev directory for explicitly free text-chat models with zero listed input and output prices. Built-in providers can be selected directly. External listings link to the provider and require checking its terms.
 

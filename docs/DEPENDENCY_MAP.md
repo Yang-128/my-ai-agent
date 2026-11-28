@@ -14,6 +14,9 @@
 - `chat`
 - `gmail_approval`
 - `google_integrations`
+- `provider_configuration`
+- `provider_credentials`
+- `provider_keychain`
 - `provider_ranking`
 - `providers`
 - `runtime`
@@ -34,15 +37,21 @@
 
 - `calendar_approval`
 - `gmail_approval`
+- `gmail_digest`
 - `providers`
 - `school_timetable`
 - `storage`
 - `task_approval`
+- `tool_loading`
 - `tools`
 
 ### `gmail_approval.py`
 
 - `runtime`
+
+### `gmail_digest.py`
+
+- No imports of other local Python modules detected.
 
 ### `google_integrations.py`
 
@@ -58,6 +67,18 @@
 - `storage`
 - `web_search`
 
+### `provider_configuration.py`
+
+- `runtime`
+
+### `provider_credentials.py`
+
+- No imports of other local Python modules detected.
+
+### `provider_keychain.py`
+
+- `runtime`
+
 ### `provider_ranking.py`
 
 - `providers`
@@ -65,6 +86,8 @@
 
 ### `providers.py`
 
+- `provider_configuration`
+- `provider_keychain`
 - `runtime`
 
 ### `runtime.py`
@@ -111,11 +134,37 @@
 
 - `mcp_client`
 
+### `tests/test_gmail_digest.py`
+
+- `gmail_digest`
+
 ### `tests/test_google_approvals.py`
 
 - `app`
 - `calendar_approval`
 - `task_approval`
+
+### `tests/test_provider_compatibility.py`
+
+- `providers`
+
+### `tests/test_provider_configuration.py`
+
+- `app`
+- `provider_configuration`
+- `providers`
+
+### `tests/test_provider_credentials.py`
+
+- `app`
+- `provider_credentials`
+- `providers`
+
+### `tests/test_provider_keychain.py`
+
+- `app`
+- `provider_keychain`
+- `providers`
 
 ### `tests/test_school_timetable.py`
 
@@ -125,6 +174,18 @@
 ### `tests/test_storage.py`
 
 - `storage`
+
+### `tests/test_tool_loading.py`
+
+- `tool_loading`
+
+### `tests/test_tool_routing.py`
+
+- `chat`
+
+### `tool_loading.py`
+
+- No imports of other local Python modules detected.
 
 ### `tools.py`
 
@@ -190,6 +251,7 @@
 - `lxml==6.1.3`
 - `pypdf==7.1.0`
 - `reportlab==5.1.0`
+- `keyring==25.7.0; sys_platform == "darwin"`
 
 ### JavaScript
 

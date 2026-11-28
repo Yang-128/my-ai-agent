@@ -40,6 +40,21 @@ def safe_path(value):
 
 def file_purpose(name):
     purposes = {
+        'tool_loading.py': 'tool loading.',
+        'tool_loading.py': 'Tool loading.',
+        'provider_keychain.py': 'provider keychain.',
+        'provider_keychain.py': 'Provider keychain.',
+        'provider_credentials.py': 'provider credentials.',
+        'provider_credentials.py': 'Provider credentials.',
+        'provider_configuration.py': 'provider configuration.',
+        'provider_configuration.py': 'Provider configuration.',
+        'gmail_digest.py': 'gmail digest.',
+        'gmail_digest.py': 'Gmail digest.',
+        '{name}")': '{name}").',
+        'docs/PROVIDER_CREDENTIALS.md': 'Provider credentials.',
+        '{name}")': '{name}").',
+        'docs/PROVIDER_CONFIGURATION.md': 'Provider configuration.',
+        'docs/GMAIL_AND_TOOL_LOADING.md': 'docs GMAIL AND TOOL LOADING.',
         ".github/workflows/checks.yml": "Runs offline checks on pushes and pull requests.",
         "scripts/check.py": "Checks source syntax and runs the offline unit suite.",
         "tests/test_storage.py": "Tests conversation persistence with a temporary database.",

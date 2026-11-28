@@ -381,6 +381,16 @@ class ExternalDevelopmentTests(unittest.TestCase):
         self.assertEqual(self.store.read(first["session_id"]), before)
         self.assertEqual(before["history"][-1]["package_id"], next_package["package_id"])
 
+    def test_blocked_task_does_not_prevent_independent_edits(self):
+        self.base["calendar_approval.py"] = "approved = False\n"
+        first = self.export()
+        self.submit(first, [], summary="Blocked on chat.py. Please export, in priority order: calendar_approval.py; static/app.js.")
+        second = export_prompt(30, first["session_id"], profile="compact", work_scope="feature",
+                               store=self.store, source=self.source, fetch=self.fetch)
+        self.assertEqual(second["suggested_paths"][0], "calendar_approval.py")
+        self.assertIn("Complete other independent, testable parts", second["prompt"])
+        self.assertIn("Return edits:[] only if no safe, useful change is possible", second["prompt"])
+
     def test_json_fence_and_duplicate_keys(self):
         package = self.export()
         raw = self.response(package, [])

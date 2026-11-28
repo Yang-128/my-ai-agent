@@ -177,8 +177,39 @@ def compact_checks(checks):
     return {**checks, "stdout": str(checks.get("stdout", ""))[-700:], "stderr": stderr[-5000:]}
 
 
+def current_handoff_scope(summary):
+    """Prefer the current blocker over explicitly deferred milestones."""
+    current = re.split(r"(?im)(?:^|\s)(?:follow[- ]on milestone|subsequent milestone|future milestone)\b", summary, maxsplit=1)[0]
+    match = re.search(r"(?i)(?:exact files needed|missing files|files needed|required files)\s*(?:\([^)]*\))?\s*:", current)
+    return current[match.end():] if match else current
+
+
+def javascript_definitions(lines):
+    """Recognize top-level named functions in the project's JS style.
+
+    This is a navigation heuristic, not a JavaScript parser; all returned
+    ranges are literal source and may be partial for unfamiliar syntax.
+    """
+    starts = []
+    for i, line in enumerate(lines, 1):
+        match = re.match(r"^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(", line)
+        if not match:
+            match = re.match(r"^(?:export\s+)?(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*\{", line)
+        if match:
+            starts.append((i, match.group(1)))
+    for index, (start, name) in enumerate(starts):
+        limit = starts[index + 1][0] - 1 if index + 1 < len(starts) else len(lines)
+        for end in range(start + 1, limit + 1):
+            if re.match(r"^}\s*;?\s*$", lines[end - 1]):
+                yield name, start, end
+                break
+        else:
+            # Do not claim the remainder of a file is one function.
+            yield name, start, min(start + 40, limit)
+
+
 def source_excerpt_candidates(path, text, goal, locations):
-    """Return exact source ranges, preferring complete Python definitions.
+    """Return exact source ranges, preferring relevant named definitions.
 
     No generated pseudo-source is editable. Ranges are line-numbered and
     extracted verbatim from the current checkpoint.
@@ -211,6 +242,21 @@ def source_excerpt_candidates(path, text, goal, locations):
                 traced = any(start <= i <= end for i in anchors)
                 if hits or traced:
                     add(start, end, 100 if traced else 20 + hits)
+    if path.endswith((".js", ".mjs", ".cjs")):
+        goal_lower = goal.lower()
+        for name, start, end in javascript_definitions(lines):
+            parts = set(re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z]|$)|[0-9]+", name))
+            parts = {part.lower() for part in parts if len(part) >= 4}
+            explicit = bool(re.search(r"(?<![\w$])" + re.escape(name.lower()) + r"(?![\w$])", goal_lower))
+            hits = len(parts & words)
+            traced = any(start <= i <= end for i in anchors)
+            if explicit or hits or traced:
+                score = 100 if traced else 85 if explicit else 24 + hits
+                add(start, end, score)
+                # Large named functions may not fit; retain their entry and
+                # local call sites as fallback candidates.
+                if explicit:
+                    add(start, min(end, start + 40), 65)
     for i in anchors:
         add(i - 36, i + 36, 95)
     # Search exact identifiers and error strings when the enclosing definition
@@ -284,10 +330,16 @@ def export_prompt(number, identifier=None, paths=None, *, focus="", profile="sta
     # Failed tests outrank unrelated work. Focus can be empty; diagnostics
     # automatically identify the failing test and implementation paths.
     last_progress = next((h for h in reversed(history) if h.get("reason") != "external prompt exported"), {})
-    requested = mentioned_paths(str(last_progress.get("summary", "")), files) if last_progress.get("reason") == "external no changes" else []
-    priority = list(dict.fromkeys([*focused, *locations, *requested]))
+    blocked = last_progress.get("reason") == "external no changes"
+    handoff = str(last_progress.get("summary", ""))
+    current_scope = current_handoff_scope(handoff) if blocked else handoff
+    requested = mentioned_paths(current_scope, files) if blocked else []
+    # An explicit focus or failing checks should not compete with deferred work.
+    priority = list(dict.fromkeys([*focused, *locations, *(requested if not focused and not locations else [])]))
     if failed and not focus:
         focus = "Repair the failed checks before adding features. Preserve existing validation and assertions."
+    elif blocked and not focus:
+        focus = "Resolve the current blocked milestone from the prior handoff. Defer follow-on milestones."
     if priority:
         suggested = list(dict.fromkeys(priority + suggested))
     automatic = paths is None
@@ -329,7 +381,7 @@ PROJECT DATA (JSON):
     if automatic and profile != "standard":
         # A repair package is narrower than a normal development package.
         scope = suggested[:12] if priority else suggested[:16]
-        goal = focus + "\n" + issue["title"] + "\n" + str(last_progress.get("summary", "")) + "\n" + str(package["last_checks"])
+        goal = focus + "\n" + issue["title"] + "\n" + current_scope + "\n" + str(package["last_checks"])
         full, excerpts = compact_source(files, scope, priority or scope[:3], goal, locations, render, budget)
         paths = list(full) + list(excerpts)
     elif automatic:

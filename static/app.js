@@ -2280,7 +2280,6 @@ async function refreshUsage() {
         const availableModels = knownModels.filter(
           item => !isDailyLimitReached(item)
         );
-        const exhaustedModels = knownModels.length - availableModels.length;
 
         if (!knownModels.length) {
           status.textContent = "Unknown";
@@ -2289,9 +2288,9 @@ async function refreshUsage() {
             : "No usage data recorded for this provider yet.";
         } else {
           status.textContent = availableModels.length
-            ? "Available"
-            : "Unavailable";
-          detail.textContent = "No daily provider cap";
+            ? "Below tracked limits"
+            : "Tracked limits reached";
+          detail.textContent = "Model-level limits. Your provider account may have additional limits.";
         }
       }
 
@@ -2354,7 +2353,7 @@ async function refreshUsage() {
       card.className = "usage-model-card";
 
       const modelStatus = hasKnownDailyLimit(item)
-        ? (isDailyLimitReached(item) ? "Daily limit reached" : "Available")
+        ? (isDailyLimitReached(item) ? "Tracked limit reached" : "Below tracked limits")
         : "Limit unknown";
 
       card.innerHTML = `
@@ -2384,8 +2383,8 @@ async function refreshUsage() {
       const statusBadge = card.querySelector(".usage-model-status");
       statusBadge.textContent = modelStatus;
       statusBadge.classList.add(
-        modelStatus === "Available" ? "status-available" :
-        modelStatus === "Daily limit reached" ? "status-unavailable" :
+        modelStatus === "Below tracked limits" ? "status-available" :
+        modelStatus === "Tracked limit reached" ? "status-unavailable" :
         "status-unknown"
       );
 
@@ -2405,7 +2404,7 @@ async function refreshUsage() {
         const amount = document.createElement("strong");
         amount.textContent = value;
         const caption = document.createElement("small");
-        caption.textContent = period;
+        caption.textContent = period + " · " + (item.quota_sources?.[label.toLowerCase()] || "Limit unknown");
         metric.append(heading, amount, caption);
         metricsContainer.appendChild(metric);
       });

@@ -48,3 +48,14 @@ class ConversationTests(unittest.TestCase):
 
     def test_unknown_conversation(self):
         self.assertIsNone(storage.get_conversation("missing"))
+
+    def test_usage_distinguishes_reference_api_and_unknown_limits(self):
+        storage.record_provider_request("gemini", "gemini-3.5-flash-lite", input_tokens=10)
+        storage.record_usage("gemini", "unlisted-model", tokens_used=10)
+        storage.record_usage("groq", "openai/gpt-oss-120b", requests_limit=1000, tokens_limit=8000)
+        rows = {item["model"]: item for item in storage.get_daily_usage()}
+        self.assertEqual(rows["gemini-3.5-flash-lite"]["quota_sources"]["rpd"], "Free-plan reference")
+        self.assertEqual(rows["unlisted-model"]["quota_sources"]["rpd"], "Limit unknown")
+        groq = rows["openai/gpt-oss-120b"]["quota_sources"]
+        self.assertEqual(groq["rpd"], "Provider API")
+        self.assertEqual(groq["tpd"], "Free-plan reference")

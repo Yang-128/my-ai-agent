@@ -60,6 +60,18 @@ def read_session(number, identifier, store, source):
     return identifier, revision, original, files, history
 
 
+def saved_patch(identifier, *, store=None, source=None):
+    """Read-only recovery of the cumulative diff against the original commit."""
+    store = store if store is not None else CheckpointStore()
+    record = store.read(identifier)
+    _, revision, original, files, history = read_session(record["issue"], identifier, store, source)
+    last = next((h for h in reversed(history) if h.get("reason") != "external prompt exported"), {})
+    return {"checkpoint_id": identifier, "issue": record["issue"], "source_commit": revision,
+            "workspace_version": snapshot_version(files), "changed_paths": changed_paths(original, files),
+            "patch": make_patch(original, files), "checks": latest_checks(history),
+            "summary": last.get("summary", ""), "issue_progress": last.get("issue_progress")}
+
+
 def mentioned_paths(text, files):
     """Only recognize names that exist in the latest allowed source snapshot."""
     matches = []

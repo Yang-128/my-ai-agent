@@ -343,7 +343,7 @@ def issue_progress(plan, history, focus=""):
     checks = latest_checks(history)
     repair = checks is not None and checks.get("exit_code") != 0
     task = ("Repair failed checks" if repair else
-            focus or last.get("current_task") or
+            focus or (last.get("current_task") if last.get("current_task") != "Select the next unfinished requirement" else "") or
             (remaining[:240] if remaining else "") or "Select the next unfinished requirement")
     pending = next((item["id"] for item in items if item["status"] != "reported_done"), None)
     active = last.get("current_id")
@@ -396,6 +396,7 @@ def export_prompt(number, identifier=None, paths=None, *, focus="", profile="sta
     if not isinstance(work_scope, str) or work_scope not in WORK_SCOPES:
         raise CodingError("Unknown development scope.")
     budget = min(MAX_PROMPT_BYTES, PROMPT_PROFILES[profile])
+    explicit_focus = focus
     suggested = suggested_paths(issue, files, changes, history, focus)
     checks = latest_checks(history)
     failed = checks is not None and checks.get("exit_code") != 0
@@ -432,7 +433,7 @@ def export_prompt(number, identifier=None, paths=None, *, focus="", profile="sta
     package_id = uuid.uuid4().hex
     metadata = {"session_id": identifier, "base_commit": revision,
                 "workspace_version": version, "package_id": package_id}
-    roadmap = issue_progress(issue_plan(issue), history, focus)
+    roadmap = issue_progress(issue_plan(issue), history, explicit_focus)
     package = {
         **metadata, "issue": issue, "issue_progress": roadmap, "changed_paths": changes, "available_paths": sorted(files),
         "focus": focus, "work_scope": work_scope, "source": {}, "source_excerpts": {}, "omitted_related_paths": suggested,
@@ -589,6 +590,10 @@ def import_response(number, identifier, raw, provider, *, store=None, source=Non
     if not isinstance(provider, str) or not re.fullmatch(r"[A-Za-z0-9 ._/-]{1,60}", provider):
         raise CodingError("Enter a short provider label.")
     roadmap = merge_issue_progress(marker.get("issue_progress", issue_progress([], history)), response.get("progress"))
+    if response.get("progress") is None:
+        remaining = unfinished_handoff(response["summary"])
+        if remaining:
+            roadmap = {**roadmap, "current_task": remaining[:240]}
     candidate = apply_edits(files, response["edits"], marker["exported_paths"], marker.get("exported_excerpts"))
     diff = make_patch(original, candidate)
     changes = changed_paths(original, candidate)
@@ -623,4 +628,4 @@ def import_response(number, identifier, raw, provider, *, store=None, source=Non
     return {"status": "partial_review" if checks["exit_code"] == 0 else "checks_failed",
             "checkpoint_id": identifier, "source_commit": revision,
             "workspace_version": snapshot_version(candidate), "summary": response["summary"],
-            "changed_paths": changes, "patch": diff, "checks": checks}
+            "changed_paths": changes, "patch": diff, "checks": checks, "issue_progress": roadmap}

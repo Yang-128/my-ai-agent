@@ -62,6 +62,57 @@ class PDFGenerationTests(unittest.TestCase):
             self.assertEqual(target.read_bytes(), b"previous content")
             self.assertEqual(list(Path(directory).iterdir()), [target])
 
+    def test_original_download_and_preview_failure(self):
+        from fastapi.testclient import TestClient
+
+        with tempfile.TemporaryDirectory() as directory, TestClient(app.app) as client:
+            root = Path(directory) / "documents"
+            root.mkdir()
+            payload = b"this PDF is corrupt"
+            (root / "report.pdf").write_bytes(payload)
+            (root / ".hidden").write_text("private")
+            (Path(directory) / "outside.txt").write_text("outside")
+            (root / "link.txt").symlink_to(Path(directory) / "outside.txt")
+            with patch.object(app, "DOCUMENTS_ROOT", root):
+                response = client.get("/api/documents/download", params={"path": "report.pdf"})
+                self.assertEqual(response.content, payload)
+                self.assertIn("attachment", response.headers["content-disposition"])
+                self.assertEqual(client.get("/api/documents/content", params={"path": "report.pdf"}).status_code, 415)
+                for path in (".hidden", "../outside.txt", "link.txt"):
+                    self.assertEqual(client.get("/api/documents/download", params={"path": path}).status_code, 403)
+                self.assertEqual(client.get("/api/documents/download", params={"path": "missing.pdf"}).status_code, 404)
+
+    def test_office_previews_keep_line_breaks(self):
+        from docx import Document
+        from openpyxl import Workbook
+        from pptx import Presentation
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            app, "DOCUMENTS_ROOT", Path(directory)
+        ):
+            root = Path(directory)
+            document = Document()
+            document.add_paragraph("First paragraph")
+            document.add_paragraph("Second paragraph")
+            document.save(root / "notes.docx")
+            workbook = Workbook()
+            workbook.active.append(["First row"])
+            workbook.active.append(["Second row"])
+            workbook.save(root / "data.xlsx")
+            slides = Presentation()
+            slide = slides.slides.add_slide(slides.slide_layouts[1])
+            slide.shapes.title.text = "Title"
+            slide.placeholders[1].text = "Slide body"
+            slides.save(root / "deck.pptx")
+
+            for name, expected in (
+                ("notes.docx", "First paragraph\nSecond paragraph"),
+                ("data.xlsx", "First row\nSecond row"),
+                ("deck.pptx", "Title\nSlide body"),
+            ):
+                with self.subTest(name=name):
+                    self.assertIn(expected, app.read_document_content(name)["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

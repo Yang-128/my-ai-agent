@@ -175,8 +175,21 @@ def browse_documents(path: str = ""):
     }
 
 
+@app.get("/api/documents/download")
+def download_document(path: str):
+    target = resolve_documents_path(path)
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found.")
+    return FileResponse(
+        target, filename=target.name, media_type="application/octet-stream",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
+    )
+
+
 @app.get("/api/documents/content")
 def read_document_content(path: str):
+    from pypdf.errors import PdfReadError
+
     target = resolve_documents_path(path)
     if not target.is_file():
         raise HTTPException(status_code=404, detail="File not found.")
@@ -191,11 +204,11 @@ def read_document_content(path: str):
         if suffix == ".docx":
             from docx import Document
             document = Document(target)
-            content = "\\n".join(
+            content = "\n".join(
                 paragraph.text for paragraph in document.paragraphs
             )
             for table in document.tables:
-                content += "\\n\\n" + "\\n".join(
+                content += "\n\n" + "\n".join(
                     " | ".join(cell.text for cell in row.cells)
                     for row in table.rows
                 )
@@ -203,7 +216,7 @@ def read_document_content(path: str):
         elif suffix == ".pdf":
             from pypdf import PdfReader
             reader = PdfReader(str(target))
-            content = "\\n\\n".join(page.extract_text() or "" for page in reader.pages)
+            content = "\n\n".join(page.extract_text() or "" for page in reader.pages)
 
         elif suffix == ".xlsx":
             from openpyxl import load_workbook
@@ -214,8 +227,8 @@ def read_document_content(path: str):
                     " | ".join("" if value is None else str(value) for value in row)
                     for row in sheet.iter_rows(values_only=True)
                 ]
-                sections.append(f"[{sheet.title}]\\n" + "\\n".join(rows))
-            content = "\\n\\n".join(sections)
+                sections.append(f"[{sheet.title}]\n" + "\n".join(rows))
+            content = "\n\n".join(sections)
 
         elif suffix == ".pptx":
             from pptx import Presentation
@@ -226,15 +239,15 @@ def read_document_content(path: str):
                     shape.text for shape in slide.shapes
                     if getattr(shape, "has_text_frame", False) and shape.text.strip()
                 ]
-                slides.append(f"[Slide {index}]\\n" + "\\n".join(texts))
-            content = "\\n\\n".join(slides)
+                slides.append(f"[Slide {index}]\n" + "\n".join(texts))
+            content = "\n\n".join(slides)
 
         else:
             content = target.read_text(encoding="utf-8")
             if "\\x00" in content:
                 raise UnicodeError("Binary file")
 
-    except (UnicodeError, OSError, ValueError, ImportError) as error:
+    except (UnicodeError, OSError, ValueError, ImportError, PdfReadError) as error:
         raise HTTPException(status_code=415, detail="This file cannot be previewed: " + str(error))
 
     return {

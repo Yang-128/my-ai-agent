@@ -2662,9 +2662,13 @@ async function showTools() {
 
 
 let currentFilesPath = "";
+let folderRequest = 0;
+let previewRequest = 0;
 
 
 async function loadFiles(path = currentFilesPath) {
+  const request = ++folderRequest;
+  previewRequest++;
   const list = document.getElementById("files-list");
   const breadcrumb = document.getElementById("files-breadcrumb");
   const upButton = document.getElementById("files-up");
@@ -2672,11 +2676,13 @@ async function loadFiles(path = currentFilesPath) {
   const endpoint = "/api/documents";
 
   list.textContent = "Loading...";
+  upButton.disabled = true;
   preview.innerHTML = '<div class="file-preview-empty">Select a file to preview its contents.</div>';
 
   try {
     const response = await fetch(`${endpoint}?path=${encodeURIComponent(path)}`);
     const data = await response.json();
+    if (request !== folderRequest) return;
     if (!response.ok) throw new Error(data.detail || "Could not load files");
 
     currentFilesPath = data.path;
@@ -2719,6 +2725,8 @@ async function loadFiles(path = currentFilesPath) {
       list.append(row);
     });
   } catch (error) {
+    if (request !== folderRequest) return;
+    upButton.disabled = !currentFilesPath;
     list.textContent = "Error: " + error.message;
   }
 }
@@ -2731,13 +2739,20 @@ function formatFileSize(bytes) {
 }
 
 async function previewFile(path) {
+  const request = ++previewRequest;
   const preview = document.getElementById("file-preview");
   const endpoint = "/api/documents/content";
-  preview.textContent = "Loading preview...";
+  const download = document.createElement("a");
+  download.href = "/api/documents/download?path=" + encodeURIComponent(path);
+  download.textContent = "Download original";
+  const status = document.createElement("p");
+  status.textContent = "Loading preview...";
+  preview.replaceChildren(download, status);
 
   try {
     const response = await fetch(`${endpoint}?path=${encodeURIComponent(path)}`);
     const data = await response.json();
+    if (request !== previewRequest) return;
     if (!response.ok) throw new Error(data.detail || "Could not preview file");
 
     preview.replaceChildren();
@@ -2762,9 +2777,9 @@ async function previewFile(path) {
     format.className = "file-preview-format";
     format.textContent = extension.toUpperCase() + " · Text preview";
 
-    preview.append(heading, format, content);
+    preview.append(heading, download, format, content);
   } catch (error) {
-    preview.textContent = "Could not preview file: " + error.message;
+    if (request === previewRequest) status.textContent = "Could not preview file: " + error.message;
   }
 }
 

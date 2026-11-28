@@ -76,6 +76,7 @@ textarea{width:100%;min-height:120px;font:13px ui-monospace,monospace;resize:ver
 <label>Model's JSON response<textarea id="external-response" placeholder="Paste the complete response here"></textarea></label>
 <label><input type="checkbox" id="external-import-approved"> I approve saving these proposed edits and executing independent checks inside the isolated Docker worker. No changes will be applied to the live repository.</label>
 <button id="external-import">Import edits and test</button>
+<section id="external-roadmap" hidden><h3>Issue roadmap</h3><p id="external-current-task"></p><p id="external-coverage"></p><progress id="external-coverage-bar" max="1" value="0"></progress><details><summary>Requirements and reported evidence</summary><ol id="external-roadmap-items"></ol></details></section>
 <p id="external-status" role="status">Ready. Enter your local session token and issue above.</p>
 <details id="external-details" hidden><summary>Development report and test results</summary><pre id="external-summary"></pre><pre id="external-checks" hidden></pre></details>
 </div>

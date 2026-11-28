@@ -18,7 +18,7 @@ async function api(path, method = "GET", body) {
 }
 function busy(value) {
   byId("start").disabled = value;
-  for (const id of ["external-sessions", "external-export", "external-import", "external-files", "external-focus", "external-manual", "external-provider", "external-response", "external-export-approved", "external-import-approved"]) byId(id).disabled = value;
+  for (const id of ["external-sessions", "external-export", "external-import", "external-files", "external-focus", "external-profile", "external-manual", "external-provider", "external-response", "external-export-approved", "external-import-approved"]) byId(id).disabled = value;
   byId("stop").disabled = !value;
   byId("token").disabled = value;
   byId("issue").disabled = value;

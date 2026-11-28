@@ -332,6 +332,39 @@ class ExternalDevelopmentTests(unittest.TestCase):
         self.assertEqual(payload["last_summary"], summary)
         self.assertEqual(decode_response(self.response(next_package, [], summary="x" * 12000))["summary"], "x" * 12000)
 
+    def test_external_roadmap_persists_reported_coverage_and_legacy_import(self):
+        self.fetch = lambda n: {"number": n, "title": "Progress",
+            "body": "## Implementation directions\n1. Backend\n2. Frontend\n## Definition of done\n- Verify behavior"}
+        first = self.export()
+        self.assertEqual(first["issue_progress"]["total"], 3)
+        self.assertEqual(first["issue_progress"]["reported_done"], 0)
+        payload = json.loads(self.response(first, [{"operation": "replace", "path": "chat.py",
+                                                    "old": "False", "new": "True"}]))
+        payload["progress"] = {"current_id": "D2", "current_task": "Finish frontend",
+                               "reports": [{"step_id": "D1", "status": "reported_done",
+                                            "evidence": "Backend implementation in chat.py"}]}
+        with patch.object(FakeWorkspace, "result", {"exit_code": 0, "stdout": "OK", "stderr": ""}):
+            result = import_response(30, first["session_id"], json.dumps(payload), "DeepSeek",
+                                     store=self.store, source=self.source, workspace_factory=FakeWorkspace)
+        roadmap = result["issue_progress"]
+        self.assertEqual(roadmap["reported_done"], 1)
+        self.assertEqual(roadmap["current_id"], "D2")
+        self.assertFalse(roadmap["verified"])
+        self.assertEqual(self.store.list()[0]["issue_progress"], roadmap)
+        second = self.export(first["session_id"])
+        self.assertEqual(second["issue_progress"]["current_task"], "Finish frontend")
+        legacy = self.submit(second, [], summary="No edits this round")
+        self.assertEqual(legacy["issue_progress"]["reported_done"], 1)
+
+    def test_external_roadmap_rejects_unknown_ids_before_saving(self):
+        first = self.export()
+        payload = json.loads(self.response(first, []))
+        payload["progress"] = {"current_id": "D999", "current_task": "Fake milestone", "reports": []}
+        with self.assertRaisesRegex(CodingError, "current_id"):
+            import_response(30, first["session_id"], json.dumps(payload), "DeepSeek",
+                            store=self.store, source=self.source, workspace_factory=FakeWorkspace)
+        self.assertEqual(self.store.read(first["session_id"])["history"][-1]["package_id"], first["package_id"])
+
     def test_json_fence_and_duplicate_keys(self):
         package = self.export()
         raw = self.response(package, [])

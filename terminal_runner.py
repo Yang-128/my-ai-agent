@@ -91,14 +91,17 @@ def checked(argv, **kwargs):
     return out
 
 
-def committed_source(root=ROOT):
-    """Read only selected regular UTF-8 blobs from the current commit, never dirty files."""
+def committed_source(root=ROOT, *, revision=None):
+    """Read regular committed blobs from HEAD or an explicitly pinned local commit."""
     def git(*args, **kwargs):
         return checked(["git", "-C", str(root), *args], **kwargs)
 
-    revision = git("rev-parse", "HEAD").decode().strip()
-    if not re.fullmatch(r"[a-f0-9]{40,64}", revision):
+    if revision is None:
+        revision = git("rev-parse", "HEAD").decode().strip()
+    if not isinstance(revision, str) or not re.fullmatch(r"[a-f0-9]{40,64}", revision):
         raise CodingError("Invalid source commit.")
+    if git("rev-parse", "--verify", revision + "^{commit}").decode().strip() != revision:
+        raise CodingError("Pinned source is not an exact local commit.")
     listing = git("ls-tree", "-r", "-z", revision, cap=1_000_000)
     files = {}
     total = 0

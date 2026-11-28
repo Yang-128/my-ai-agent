@@ -34,12 +34,13 @@ async function poll() {
     }
     busy(false);
     const result = run.result || {};
-    byId("status").textContent = result.message || ("Run ended: " + run.status);
+    byId("status").textContent = result.message || ("Run ended: " + run.status + (result.reason ? " — " + result.reason : ""));
     patch = result.patch || "";
     sourceCommit = result.source_commit || "";
     byId("review").hidden = !patch;
     if (patch) {
       byId("result").textContent = (run.status === "review" ? "Standard checks returned exit code 0. Review before applying." :
+        run.status === "partial_review" ? "Partial patch: standard checks passed, but the issue is not confirmed complete." :
         "Standard checks did not pass; this is an unverified proposed patch.") + "\n" + (result.summary || "");
       byId("commit").textContent = "Source commit: " + sourceCommit;
       byId("patch").textContent = patch;

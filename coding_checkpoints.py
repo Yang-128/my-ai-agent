@@ -84,8 +84,11 @@ class CheckpointStore:
             except CodingError:
                 continue
             last = record["history"][-1] if record["history"] else {}
+            roadmap = next((item["issue_progress"] for item in reversed(record["history"])
+                            if isinstance(item.get("issue_progress"), dict)), None)
             result.append({"id": record["id"], "issue": record["issue"], "revision": record["revision"],
-                           "last_model": last.get("model"), "last_reason": last.get("reason")})
+                           "last_model": last.get("model"), "last_reason": last.get("reason"),
+                           "issue_progress": roadmap, "checks_passed": (last.get("checks") or {}).get("exit_code") == 0})
         return result
 
     def delete(self, identifier):

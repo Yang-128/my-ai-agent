@@ -25,6 +25,7 @@ function busy(value) {
   byId("approved").disabled = value;
   for (const id of ["discover", "checkpoint", "model-1", "model-2", "model-3"]) byId(id).disabled = value;
   byId("delete-checkpoint").disabled = value || !byId("checkpoint").value;
+  byId("saved-patch").disabled = value || !byId("checkpoint").value;
 }
 function selectedModels() {
   return ["model-1", "model-2", "model-3"].map(id => byId(id).value)
@@ -38,6 +39,7 @@ function fillCheckpoints(items, selected = "") {
     "Issue #" + item.issue + " — " + (item.last_model || "saved") + " — base " + item.revision.slice(0, 8) + " — " + item.id.slice(0, 8), item.id));
   select.value = selected;
   byId("delete-checkpoint").disabled = !select.value;
+  byId("saved-patch").disabled = !select.value;
 }
 async function refreshCheckpoints(selected = "") {
   const result = await api("/api/coding/checkpoints");
@@ -47,6 +49,8 @@ byId("checkpoint").addEventListener("change", () => {
   const record = checkpoints.find(c => c.id === byId("checkpoint").value);
   if (record) byId("issue").value = record.issue;
   byId("delete-checkpoint").disabled = !record;
+  byId("saved-patch").disabled = !record;
+  patch = ""; sourceCommit = ""; byId("review").hidden = true;
   byId("approved").checked = false;
 });
 byId("discover").addEventListener("click", async () => {
@@ -149,6 +153,33 @@ byId("stop").addEventListener("click", async () => {
     await api("/api/coding/" + encodeURIComponent(runId) + "/stop", "POST", {});
     byId("status").textContent = "Cancellation requested; waiting for current operation to stop.";
   } catch (error) { byId("status").textContent = error.message; }
+});
+byId("saved-patch").addEventListener("click", async () => {
+  if (externalBusy) return;
+  const identifier = byId("checkpoint").value;
+  if (!identifier) return;
+  activeToken = byId("token").value.trim();
+  lockExternal(true);
+  try {
+    const result = await api("/api/coding/checkpoints/" + encodeURIComponent(identifier) + "/patch");
+    patch = result.patch || "";
+    sourceCommit = result.source_commit || "";
+    byId("review").hidden = !patch;
+    byId("result").textContent = result.checks?.exit_code === 0 ?
+      "Standard checks passed. Review before applying." : "Saved proposed changes are not verified.";
+    byId("commit").textContent = "Source commit: " + sourceCommit;
+    byId("patch").textContent = patch;
+    showExternalReport(result.summary, result.checks);
+    showIssueRoadmap(result.issue_progress, result.checks?.exit_code === 0);
+    if (patch) {
+      byId("download").click();
+      byId("external-status").textContent = "Latest cumulative patch retrieved.";
+    } else {
+      byId("external-status").textContent = "This checkpoint contains no proposed changes. Select the session with development progress.";
+    }
+  } catch (error) {
+    byId("external-status").textContent = error.message;
+  } finally { lockExternal(false); }
 });
 byId("download").addEventListener("click", () => {
   if (!patch) return;

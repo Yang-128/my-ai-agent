@@ -46,6 +46,7 @@ byId("checkpoint").addEventListener("change", () => {
   const record = checkpoints.find(c => c.id === byId("checkpoint").value);
   if (record) byId("issue").value = record.issue;
   byId("delete-checkpoint").disabled = !record;
+  byId("approved").checked = false;
 });
 byId("discover").addEventListener("click", async () => {
   activeToken = byId("token").value.trim();
@@ -90,6 +91,7 @@ async function poll() {
     }
     busy(false);
     const result = run.result || {};
+    byId("approved").checked = false;
     byId("status").textContent = result.message || ("Run ended: " + run.status + (result.reason ? " — " + result.reason : ""));
     if (result.checkpoint_id) {
       try { await refreshCheckpoints(result.checkpoint_id); } catch (_) { /* Saved checkpoint remains on disk. */ }

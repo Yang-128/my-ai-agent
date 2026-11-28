@@ -5,7 +5,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from coding_agent import execute_action, run_issue, rate_limit_delay, MODEL, issue_plan, report_plan_progress, pending_plan
+from coding_agent import execute_action, run_issue, rate_limit_delay, MODEL, issue_plan, report_plan_progress, pending_plan, TOOLS, compact_messages, provider_error_category
 from coding_sandbox.policy import allowed_source
 from terminal_runner import make_patch, verified_snapshot, CodingError
 
@@ -78,6 +78,60 @@ class CodingTests(unittest.TestCase):
         self.assertEqual(result["status"], "partial_review")
         self.assertEqual(result["checks"]["exit_code"], 0)
         self.assertEqual(result["remaining_plan_items"], ["D1", "A1"])
+
+    def test_dedicated_tools_and_scoped_search(self):
+        names = {entry["function"]["name"] for entry in TOOLS}
+        self.assertNotIn("coding_action", names)
+        self.assertIn("coding_search", names)
+        self.assertIn("coding_run_tests", names)
+        workspace = FakeWorkspace({"chat.py": "needle\n", "other.py": "needle\n"}, threading.Event())
+        self.assertEqual(execute_action(workspace, {"operation": "search", "query": "needle",
+                                                   "path": "chat.py"})[0]["path"], "chat.py")
+        self.assertEqual(execute_action(workspace, {"operation": "read_file", "path": "chat.py",
+                                                   "start_line": None}), "needle\n")
+        execute_action(workspace, {"operation": "run_command", "argv": [".venv/bin/python", "-m", "unittest"]})
+        self.assertEqual(workspace.commands[-1][0], "python")
+        execute_action(workspace, {"operation": "run_tests", "path": "tests/test_chat.py"})
+        self.assertEqual(workspace.commands[-1], ["python", "-m", "unittest", "discover", "-s", "tests", "-p", "test_chat.py"])
+        self.assertIn("error", execute_action(workspace, {"operation": "run_tests", "path": "../test_chat.py"}))
+
+    def test_context_compacts_complete_tool_turns(self):
+        messages = [{"role": "system", "content": "rules"}, {"role": "user", "content": "issue"}]
+        for i in range(8):
+            messages.extend([{"role": "assistant", "tool_calls": [{"id": str(i)}]},
+                             {"role": "tool", "tool_call_id": str(i), "content": "x" * 1000}])
+        compacted = compact_messages(messages, {}, [], ["chat.py"], [], None)
+        self.assertEqual(compacted[:2], messages[:2])
+        self.assertEqual([m["tool_call_id"] for m in compacted if m["role"] == "tool"], ["5", "6", "7"])
+        self.assertIn("chat.py", compacted[2]["content"])
+        self.assertLess(len(str(compacted)), len(str(messages)))
+
+    def test_unsupported_provider_error_is_sanitized(self):
+        error = SimpleNamespace(body={"error": {"code": "tool_use_failed", "message": "private payload"}})
+        self.assertEqual(provider_error_category(error), "tool_use_failed")
+        self.assertEqual(provider_error_category(SimpleNamespace(body={"code": "secret"})), "unclassified")
+
+    def test_false_completion_does_not_survive_checkpoint(self):
+        before = {"chat.py": "return False\n", "scripts/check.py": "pass\n"}
+        client = Mock()
+        client.chat.completions.create.side_effect = [
+            completion({"path": "chat.py", "old": "False", "new": "True"}, tool="coding_replace"),
+            completion({"step_id": "D1", "status": "reported_done", "evidence": "Edited missing.py"},
+                       tool="coding_report_progress"),
+            completion({"step_id": "A1", "status": "reported_done", "evidence": "chat.py"},
+                       tool="coding_report_progress"),
+            completion(text="Done."), completion(text="Done."), completion(text="Done."),
+        ]
+        checkpoint = Mock()
+        result = run_issue(123, threading.Event(), Mock(),
+            fetch=lambda _: {"number": 123, "title": "Fixture",
+                "body": "## Implementation directions\n1. Fix result\n## Acceptance criteria\n- [ ] Verify result"},
+            source=lambda: ("a" * 40, before), workspace_factory=FakeWorkspace,
+            client_factory=lambda: client, usage=Mock(), pause=Mock(return_value=True), checkpoint=checkpoint)
+        self.assertEqual(result["status"], "partial_review")
+        self.assertEqual(result["remaining_plan_items"], ["D1", "A1"])
+        self.assertEqual(checkpoint.call_args_list[0].args[2]["reason"], "edit saved")
+        self.assertEqual(checkpoint.call_args_list[0].args[1]["chat.py"], "return True\n")
 
     def test_source_allowlist(self):
         for path in ("chat.py", "docs/README.md", "static/app.js", "tests/test_chat.py"):

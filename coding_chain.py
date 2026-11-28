@@ -71,7 +71,6 @@ def run_chain(number, stop, emit, selections=None, checkpoint_id=None, *,
               validate=authorize, interval_for=model_interval, client=client_for):
     """Each stage starts fresh model context, but restores the same verified source."""
     store = store if store is not None else CheckpointStore()
-    explicit = bool(selections)
     selections = selections or [{"provider": PROVIDER, "model": MODEL}]
     if len(selections) > MAX_STAGES or len({(s["provider"], s["model"]) for s in selections}) != len(selections):
         raise CodingError("Select up to three distinct coding models.")
@@ -94,10 +93,8 @@ def run_chain(number, stop, emit, selections=None, checkpoint_id=None, *,
             raise CodingCancelled("Coding run cancelled.")
         provider, model = selection["provider"], selection["model"]
         try:
-            # Legacy default is explicitly confirmed on the coding screen.
-            # Every alternate or explicitly selected model must pass live verification.
-            if explicit:
-                validate(selection)
+            # Recheck the current published free listing, even for the default.
+            validate(selection)
             interval = interval_for(provider, model)
         except Exception as error:
             emit("status", {"message": f"Skipping {provider}/{model}: free eligibility or quota could not be confirmed.",
@@ -125,6 +122,6 @@ def run_chain(number, stop, emit, selections=None, checkpoint_id=None, *,
             break
         emit("status", {"message": "Stage incomplete; retaining checkpoint for the next authorized model."})
     if last is None:
-        raise CodingError("No selected model passed free-eligibility and quota checks.")
+        raise CodingError("No selected model passed free-eligibility and quota checks. Load the free-model catalog and select an available model.")
     return {**last, "checkpoint_id": identifier, "stages": history[-12:],
             "message": f"{last['status']} — {last.get('reason', '')}"}

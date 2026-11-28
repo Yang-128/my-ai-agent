@@ -18,7 +18,7 @@ async function api(path, method = "GET", body) {
 }
 function busy(value) {
   byId("start").disabled = value;
-  for (const id of ["external-sessions", "external-export", "external-import", "external-files", "external-provider", "external-response", "external-export-approved", "external-import-approved"]) byId(id).disabled = value;
+  for (const id of ["external-sessions", "external-export", "external-import", "external-files", "external-focus", "external-manual", "external-provider", "external-response", "external-export-approved", "external-import-approved"]) byId(id).disabled = value;
   byId("stop").disabled = !value;
   byId("token").disabled = value;
   byId("issue").disabled = value;
@@ -178,6 +178,9 @@ function clearExternalPrompt() {
   byId("external-version").textContent = "";
   byId("external-import-approved").checked = false;
 }
+byId("external-manual").addEventListener("change", () => {
+  byId("external-files").readOnly = !byId("external-manual").checked;
+});
 byId("checkpoint").addEventListener("change", clearExternalPrompt);
 byId("issue").addEventListener("change", clearExternalPrompt);
 byId("external-sessions").addEventListener("click", async () => {
@@ -206,10 +209,16 @@ byId("external-export").addEventListener("click", async () => {
     const paths = byId("external-files").value.split(/\n/).map(x => x.trim()).filter(Boolean);
     const result = await api("/api/coding/external/export", "POST", {
       issue, checkpoint_id: byId("checkpoint").value || null,
-      paths: paths.length ? paths : null, approved: true
+      paths: byId("external-manual").checked ? paths : null,
+      focus: byId("external-focus").value.trim(), approved: true
     });
     await refreshCheckpoints(result.session_id);
     byId("external-files").value = result.paths.join("\n");
+    const omitted = result.omitted_paths || [];
+    byId("external-omitted").hidden = !omitted.length;
+    byId("external-omitted").textContent = omitted.length ?
+      "Related files not included in this package (scope or size limit):\n" + omitted.join("\n") +
+      "\nFor a narrower next milestone, specify its focus or use manual selection." : "";
     byId("external-available").textContent = result.available_paths.join("\n");
     byId("external-prompt").value = result.prompt;
     byId("external-version").textContent = "Base: " + result.base_commit + "\nWorkspace: " + result.workspace_version +
@@ -252,7 +261,13 @@ byId("external-import").addEventListener("click", async () => {
     });
     await refreshCheckpoints(result.checkpoint_id);
     const priorPaths = byId("external-files").value.split(/\n/).map(x => x.trim()).filter(Boolean);
-    byId("external-files").value = [...new Set([...priorPaths, ...result.changed_paths])].join("\n");
+    if (byId("external-manual").checked) {
+      byId("external-files").value = [...new Set([...priorPaths, ...result.changed_paths])].join("\n");
+    } else {
+      byId("external-files").value = "";
+    }
+    byId("external-focus").value = "";
+    byId("external-omitted").hidden = true;
     clearExternalPrompt();
     byId("external-response").value = "";
     byId("external-version").textContent = "Base: " + result.source_commit + "\nLatest workspace: " + result.workspace_version +

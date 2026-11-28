@@ -27,7 +27,7 @@ class CodingCancelled(CodingError):
     pass
 
 
-def process(argv, *, data=b"", timeout=30, cap=32_000, stop=None):
+def process(argv, *, data=b"", timeout=30, cap=32_000, stop=None, keep_tail=False):
     """Bound both streams and wait; killing docker exec is followed by container cleanup."""
     env = {"PATH": HOST_PATH, "HOME": str(Path.home()), "LANG": "C.UTF-8",
            "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
@@ -41,10 +41,16 @@ def process(argv, *, data=b"", timeout=30, cap=32_000, stop=None):
                 chunk = pipe.read(8192)
                 if not chunk:
                     break
-                remaining = max(0, cap - len(buffers[index]))
-                buffers[index].extend(chunk[:remaining])
-                if len(chunk) > remaining:
-                    truncated[index] = True
+                if keep_tail:
+                    buffers[index].extend(chunk)
+                    if len(buffers[index]) > cap:
+                        truncated[index] = True
+                        del buffers[index][:-cap]
+                else:
+                    remaining = max(0, cap - len(buffers[index]))
+                    buffers[index].extend(chunk[:remaining])
+                    if len(chunk) > remaining:
+                        truncated[index] = True
 
         def feed():
             try:
@@ -246,7 +252,7 @@ class DockerWorkspace:
                 or any(not isinstance(a, str) or not a or len(a) > 2000 or "\0" in a for a in argv)
                 or argv[0] not in {"python", "python3", "node", "ls", "grep", "find", "cat", "git"}):
             return {"error": "Use a supported argument-array command; no host shell."}
-        code, out, err, truncated = process(self.exec_args(argv), timeout=timeout, stop=self.stop, cap=14000)
+        code, out, err, truncated = process(self.exec_args(argv), timeout=timeout, stop=self.stop, cap=14000, keep_tail=True)
         return {"exit_code": code, "stdout": out.decode(errors="replace"),
                 "stderr": err.decode(errors="replace"), "truncated": truncated}
 

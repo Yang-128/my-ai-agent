@@ -14,8 +14,7 @@ MAX_SAVED = 12
 class CheckpointStore:
     def __init__(self, directory=None):
         if directory is None:
-            from runtime import DATA_DIR
-            directory = DATA_DIR / ".coding-checkpoints"
+            directory = Path.home() / ".my-ai-agent" / "coding-checkpoints"
         self.directory = Path(directory)
 
     def prepare(self):
@@ -47,7 +46,8 @@ class CheckpointStore:
             record = json.loads(raw)
             if (record["id"] != identifier or type(record["issue"]) is not int
                     or not re.fullmatch(r"[a-f0-9]{40,64}", record["revision"])
-                    or not isinstance(record["history"], list) or len(record["history"]) > 12):
+                    or not isinstance(record["history"], list) or len(record["history"]) > 12
+                    or any(not isinstance(item, dict) for item in record["history"])):
                 raise ValueError("Invalid checkpoint metadata")
             verified_snapshot(record["files"])
         except (ValueError, TypeError, KeyError) as exc:

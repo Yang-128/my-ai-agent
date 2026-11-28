@@ -35,7 +35,7 @@ function fillCheckpoints(items, selected = "") {
   const select = byId("checkpoint");
   select.replaceChildren(new Option("New coding session", ""));
   for (const item of items) select.add(new Option(
-    "Issue #" + item.issue + " — " + (item.last_model || "saved") + " — " + item.id.slice(0, 8), item.id));
+    "Issue #" + item.issue + " — " + (item.last_model || "saved") + " — base " + item.revision.slice(0, 8) + " — " + item.id.slice(0, 8), item.id));
   select.value = selected;
   byId("delete-checkpoint").disabled = !select.value;
 }
@@ -185,8 +185,14 @@ byId("external-sessions").addEventListener("click", async () => {
   activeToken = byId("token").value.trim();
   lockExternal(true);
   try {
-    await refreshCheckpoints(byId("checkpoint").value);
-    byId("external-status").textContent = "Saved sessions loaded. Select the latest checkpoint for your issue.";
+    const selected = byId("checkpoint").value;
+    await refreshCheckpoints(selected);
+    if (!selected) {
+      const latest = checkpoints.find(c => c.issue === Number(byId("issue").value));
+      if (latest) byId("checkpoint").value = latest.id;
+    }
+    clearExternalPrompt();
+    byId("external-status").textContent = "Saved sessions loaded, newest first. Resume the latest matching checkpoint or select New coding session to start separately.";
   } catch (error) {
     byId("external-status").textContent = error.message;
   } finally { lockExternal(false); }
@@ -245,6 +251,8 @@ byId("external-import").addEventListener("click", async () => {
       issue, checkpoint_id: checkpoint, response, provider, approved: true
     });
     await refreshCheckpoints(result.checkpoint_id);
+    const priorPaths = byId("external-files").value.split(/\n/).map(x => x.trim()).filter(Boolean);
+    byId("external-files").value = [...new Set([...priorPaths, ...result.changed_paths])].join("\n");
     clearExternalPrompt();
     byId("external-response").value = "";
     byId("external-version").textContent = "Base: " + result.source_commit + "\nLatest workspace: " + result.workspace_version +

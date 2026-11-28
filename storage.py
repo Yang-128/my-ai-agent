@@ -547,7 +547,7 @@ def get_daily_usage():
         item["tpm_used"] = tpm_used
         item["tpd_used"] = daily_token_usage.get(key, 0)
 
-        # No verified official TPD/TPW limits are configured.
+        # Only models in the free-plan reference table have a daily token cap.
         item["tpd_limit"] = (
             GROQ_TPD_LIMITS.get(model)
             if provider == "groq"
@@ -562,7 +562,7 @@ def get_daily_usage():
             item["rpm_limit"] = gemini_limits["rpm"]
             item["tpm_limit"] = gemini_limits["tpm"]
             item["rpd_limit"] = gemini_limits["rpd"]
-            item["limit_source"] = "Gemini AI Studio Free Tier"
+            item["limit_source"] = "Free-plan reference"
         else:
             item["rpm_limit"] = (
                 30 if provider == "groq" and model == "openai/gpt-oss-120b"
@@ -576,8 +576,16 @@ def get_daily_usage():
                     item["requests_limit"] is not None
                     or item["tokens_limit"] is not None
                 )
-                else "Local tracking"
+                else "Limit unknown"
             )
+
+        item["quota_sources"] = {
+            "rpm": "Free-plan reference" if item["rpm_limit"] is not None else "Limit unknown",
+            "tpm": ("Free-plan reference" if gemini_limits else "Provider API")
+                if item["tpm_limit"] is not None else "Limit unknown",
+            "rpd": item["limit_source"] if item["rpd_limit"] is not None else "Limit unknown",
+            "tpd": "Free-plan reference" if item["tpd_limit"] is not None else "Limit unknown",
+        }
 
         if (
             provider == "groq"

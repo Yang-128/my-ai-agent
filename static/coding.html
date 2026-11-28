@@ -10,6 +10,10 @@ label{display:block;margin:10px 0} input:not([type=checkbox]),button{font:inheri
 input:not([type=checkbox]){box-sizing:border-box;width:100%} button{cursor:pointer;margin:6px 6px 6px 0} button:disabled{opacity:.5;cursor:default} #start{background:#295eaa}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:440px;overflow:auto;background:#101114;padding:12px;border-radius:6px;font-size:13px}
 small{color:#b3b5bc} [hidden]{display:none!important}
+textarea,select{box-sizing:border-box;max-width:100%;font:inherit;background:#272a30;color:inherit;border:1px solid #61646a;border-radius:7px;padding:10px}
+textarea{width:100%;min-height:120px;font:13px ui-monospace,monospace;resize:vertical}
+#external-files{min-height:65px} #external-prompt{min-height:220px}
+.providers a{display:inline-block;margin:4px 12px 4px 0} .version{overflow-wrap:anywhere;font:13px ui-monospace,monospace}
 </style></head>
 <body>
 <a href="/">← Back to chat</a>
@@ -31,6 +35,27 @@ small{color:#b3b5bc} [hidden]{display:none!important}
 <small>Only selected committed text source is copied. Local edits, credentials and runtime files are excluded by design; inspect committed content for sensitive information before starting. The first version is local-only and caps inference attempts at 32 per model stage, with at most three stages. Public free listings cannot verify your account's billing settings.</small>
 <div><button id="start">Fix or resume issue</button><button id="stop" disabled>Stop</button></div>
 <p id="status" role="status">Ready. Start the dedicated local coding server and build the worker image first.</p>
+</div>
+<div class="panel" id="external">
+<h2>External web developer</h2>
+<p>Work with a free web conversation manually. No provider API keys, desktop app, or automatic browser access required.</p>
+<button id="external-sessions">Load saved sessions only</button>
+<p><small>Use the issue and checkpoint selector above. Resume the same checkpoint when switching providers. New sessions use this checkout's committed HEAD; older bases must be opened in their matching checkout.</small></p>
+<label>Source paths to include (one per line; blank selects issue references and changed files)<textarea id="external-files" placeholder="chat.py&#10;static/app.js"></textarea></label>
+<details><summary>Available source paths</summary><pre id="external-available"></pre></details>
+<label><input type="checkbox" id="external-export-approved"> I authorize preparing the selected project source for external sharing. I will review the generated prompt before pasting it into a provider.</label>
+<button id="external-export">Generate latest prompt</button>
+<p class="version" id="external-version"></p>
+<label>Prompt for your web model<textarea id="external-prompt" readonly></textarea></label>
+<button id="external-copy" disabled>Copy prompt</button>
+<p class="providers"><a href="https://claude.ai" target="_blank" rel="noopener noreferrer">Claude</a><a href="https://chat.deepseek.com" target="_blank" rel="noopener noreferrer">DeepSeek</a><a href="https://www.kimi.com" target="_blank" rel="noopener noreferrer">Kimi</a><a href="https://chatgpt.com" target="_blank" rel="noopener noreferrer">ChatGPT</a><a href="https://gemini.google.com" target="_blank" rel="noopener noreferrer">Gemini</a><a href="https://chat.qwen.ai" target="_blank" rel="noopener noreferrer">Qwen</a></p>
+<p><small>Paste the prompt into your chosen web conversation. Return the complete JSON response here. If the provider runs out of quota, generate a new prompt for the same checkpoint and switch providers. A newer export invalidates older responses.</small></p>
+<label>Developer used<input id="external-provider" placeholder="Claude, DeepSeek, Kimi, or another provider" maxlength="60"></label>
+<label>Model's JSON response<textarea id="external-response" placeholder="Paste the complete response here"></textarea></label>
+<label><input type="checkbox" id="external-import-approved"> I approve saving these proposed edits and executing independent checks inside the isolated Docker worker. No changes will be applied to the live repository.</label>
+<button id="external-import">Import edits and test</button>
+<p id="external-status" role="status">Ready. Enter your local session token and issue above.</p>
+<pre id="external-checks" hidden></pre>
 </div>
 <div class="panel"><h2>Activity</h2><pre id="activity" aria-live="polite"></pre></div>
 <div id="review" class="panel" hidden><h2>Review proposed changes</h2><p id="result"></p><p id="commit"></p><pre id="patch"></pre><button id="download">Download patch</button><p><small>Check the original commit, review the diff and run your own tests before applying it. No changes have been applied to the live checkout.</small></p></div>

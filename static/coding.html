@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My AI Agent — Coding Mode</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui,sans-serif;background:#111214;color:#e7e9ec}
+body{max-width:900px;margin:0 auto;padding:24px;line-height:1.55}
+a{color:#a4c8ff} h1,h2{line-height:1.2} .panel{background:#1c1e22;border:1px solid #36383d;padding:20px;border-radius:12px;margin:16px 0}
+label{display:block;margin:10px 0} input:not([type=checkbox]),button{font:inherit;border:1px solid #61646a;background:#272a30;color:inherit;padding:10px;border-radius:7px}
+input:not([type=checkbox]){box-sizing:border-box;width:100%} button{cursor:pointer;margin:6px 6px 6px 0} button:disabled{opacity:.5;cursor:default} #start{background:#295eaa}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:440px;overflow:auto;background:#101114;padding:12px;border-radius:6px;font-size:13px}
+small{color:#b3b5bc} [hidden]{display:none!important}
+</style></head>
+<body>
+<a href="/">← Back to chat</a>
+<h1>GitHub issue coding</h1>
+<p>Model: <strong>Gemini 3.5 Flash-Lite</strong>. Repository: Yang-128/my-ai-agent.</p>
+<div class="panel">
+<label>Local coding session token<input id="token" type="password" autocomplete="off" spellcheck="false"></label>
+<label>Open GitHub issue number<input id="issue" type="number" min="1" max="1000000" inputmode="numeric"></label>
+<label><input id="approved" type="checkbox"> I authorize sending the selected issue and relevant committed project source to Gemini, running code in the local isolated Docker worker, and using the configured Gemini account. I have confirmed its billing/free-tier settings. No patch will be automatically applied or pushed.</label>
+<small>Only selected committed text source is copied. Local edits, credentials and runtime files are excluded by design; inspect committed content for sensitive information before starting. The first version is local-only and caps requests at 20.</small>
+<div><button id="start">Fix issue</button><button id="stop" disabled>Stop</button></div>
+<p id="status" role="status">Ready. Start the dedicated local coding server and build the worker image first.</p>
+</div>
+<div class="panel"><h2>Activity</h2><pre id="activity" aria-live="polite"></pre></div>
+<div id="review" class="panel" hidden><h2>Review proposed changes</h2><p id="result"></p><p id="commit"></p><pre id="patch"></pre><button id="download">Download patch</button><p><small>Check the original commit, review the diff and run your own tests before applying it. No changes have been applied to the live checkout.</small></p></div>
+<script src="/static/coding.js"></script>
+</body></html>

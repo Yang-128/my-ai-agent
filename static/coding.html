@@ -7,7 +7,7 @@
 body{max-width:900px;margin:0 auto;padding:24px;line-height:1.55}
 a{color:#a4c8ff} h1,h2{line-height:1.2} .panel{background:#1c1e22;border:1px solid #36383d;padding:20px;border-radius:12px;margin:16px 0}
 label{display:block;margin:10px 0} input:not([type=checkbox]),button{font:inherit;border:1px solid #61646a;background:#272a30;color:inherit;padding:10px;border-radius:7px}
-input:not([type=checkbox]){box-sizing:border-box;width:100%} button{cursor:pointer;margin:6px 6px 6px 0} button:disabled{opacity:.5;cursor:default} #start{background:#295eaa}
+input:not([type=checkbox]){box-sizing:border-box;width:100%} button{cursor:pointer;margin:6px 6px 6px 0} button:disabled{opacity:.5;cursor:default} #external-export,#external-import{background:#295eaa} summary{cursor:pointer}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:440px;overflow:auto;background:#101114;padding:12px;border-radius:6px;font-size:13px}
 small{color:#b3b5bc} [hidden]{display:none!important}
 textarea,select{box-sizing:border-box;max-width:100%;font:inherit;background:#272a30;color:inherit;border:1px solid #61646a;border-radius:7px;padding:10px}
@@ -18,28 +18,18 @@ textarea{width:100%;min-height:120px;font:13px ui-monospace,monospace;resize:ver
 <body>
 <a href="/">← Back to chat</a>
 <h1>GitHub issue coding</h1>
-<p>Default model: <strong>Gemini 3.5 Flash-Lite</strong>. Repository: Yang-128/my-ai-agent.</p>
+<p>Repository: Yang-128/my-ai-agent. Develop with external web models, then review and test proposed changes locally.</p>
 <div class="panel">
 <label>Local coding session token<input id="token" type="password" autocomplete="off" spellcheck="false"></label>
 <label>Open GitHub issue number<input id="issue" type="number" min="1" max="1000000" inputmode="numeric"></label>
-<button id="discover">Load free models and saved sessions</button>
+<button id="external-sessions">Load saved sessions</button>
 <label>Resume checkpoint<select id="checkpoint"><option value="">New coding session</option></select></label>
 <button id="delete-checkpoint" disabled>Delete selected checkpoint</button>
-<div id="models" hidden>
-<p>Choose up to three models in execution order. Leave all blank to use the existing default.</p>
-<label>First model<select id="model-1"></select></label>
-<label>Fallback model<select id="model-2"></select></label>
-<label>Final fallback model<select id="model-3"></select></label>
-</div>
-<label><input id="approved" type="checkbox"> I authorize sending the selected issue and relevant committed project source to the selected providers, including each chosen fallback, running code in the local isolated Docker worker, and saving private local source checkpoints. I have confirmed the selected accounts' billing/free-tier settings. No patch will be automatically applied or pushed.</label>
-<small>Only selected committed text source is copied. Local edits, credentials and runtime files are excluded by design; inspect committed content for sensitive information before starting. The first version is local-only and caps inference attempts at 32 per model stage, with at most three stages. Public free listings cannot verify your account's billing settings.</small>
-<div><button id="start">Fix or resume issue</button><button id="stop" disabled>Stop</button></div>
-<p id="status" role="status">Ready. Start the dedicated local coding server and build the worker image first.</p>
+
 </div>
 <div class="panel" id="external">
-<h2>External web developer</h2>
+<h2>External web development</h2>
 <p>Work with a free web conversation manually. No provider API keys, desktop app, or automatic browser access required.</p>
-<button id="external-sessions">Load saved sessions only</button>
 <p><small>Use the issue and checkpoint selector above. Resume the same checkpoint when switching providers. New sessions use this checkout's committed HEAD; external sessions retain their original locally available base commit.</small></p>
 <label>Target web model
 <select id="external-profile">
@@ -80,7 +70,22 @@ textarea{width:100%;min-height:120px;font:13px ui-monospace,monospace;resize:ver
 <p id="external-status" role="status">Ready. Enter your local session token and issue above.</p>
 <details id="external-details" hidden><summary>Development report and test results</summary><pre id="external-summary"></pre><pre id="external-checks" hidden></pre></details>
 </div>
-<div class="panel"><h2>Activity</h2><pre id="activity" aria-live="polite"></pre></div>
+
 <div id="review" class="panel" hidden><h2>Review proposed changes</h2><p id="result"></p><p id="commit"></p><details><summary>View full patch</summary><pre id="patch"></pre></details><button id="download">Download patch</button><p><small>Check the original commit, review the diff and run your own tests before applying it. No changes have been applied to the live checkout.</small></p></div>
+<details class="panel" id="api-development"><summary><strong>Advanced: autonomous API development</strong></summary>
+<p><small>Experimental. Free API models may exhaust quota or struggle with complex issues. External web development is the recommended workflow for now. Check account billing before enabling an API run. Default: Gemini 3.5 Flash-Lite.</small></p>
+<button id="discover">Load API models and saved sessions</button>
+<div id="models" hidden>
+<p>Choose up to three models in execution order. Leave all blank to use the existing default.</p>
+<label>First model<select id="model-1"></select></label>
+<label>Fallback model<select id="model-2"></select></label>
+<label>Final fallback model<select id="model-3"></select></label>
+</div>
+<label><input id="approved" type="checkbox"> I authorize sending the selected issue and relevant committed project source to the selected providers, including each chosen fallback, running code in the local isolated Docker worker, and saving private local source checkpoints. I have confirmed the selected accounts' billing/free-tier settings. No patch will be automatically applied or pushed.</label>
+<small>Only selected committed text source is copied. Local edits, credentials and runtime files are excluded by design; inspect committed content for sensitive information before starting. The first version is local-only and caps inference attempts at 32 per model stage, with at most three stages. Public free listings cannot verify your account's billing settings.</small>
+<div><button id="start">Fix or resume issue</button><button id="stop" disabled>Stop</button></div>
+<p id="status" role="status">Ready. Start the dedicated local coding server and build the worker image first.</p>
+<h3>API activity</h3><pre id="activity" aria-live="polite"></pre>
+</details>
 <script src="/static/coding.js"></script>
 </body></html>

@@ -18,7 +18,7 @@ async function api(path, method = "GET", body) {
 }
 function busy(value) {
   byId("start").disabled = value;
-  for (const id of ["external-sessions", "external-export", "external-import", "external-files", "external-focus", "external-profile", "external-manual", "external-provider", "external-response", "external-export-approved", "external-import-approved"]) byId(id).disabled = value;
+  for (const id of ["external-sessions", "external-export", "external-import", "external-files", "external-focus", "external-profile", "external-scope", "external-manual", "external-provider", "external-response", "external-export-approved", "external-import-approved"]) byId(id).disabled = value;
   byId("stop").disabled = !value;
   byId("token").disabled = value;
   byId("issue").disabled = value;
@@ -172,6 +172,26 @@ function externalIssue() {
   activeToken = byId("token").value.trim();
   return issue;
 }
+function showExternalReport(summary, checks) {
+  const details = byId("external-details");
+  details.open = false;
+  details.hidden = !summary && !checks;
+  byId("external-summary").textContent = summary || "";
+  byId("external-summary").hidden = !summary;
+  byId("external-checks").hidden = !checks;
+  byId("external-checks").textContent = checks ? JSON.stringify(checks, null, 2) : "";
+}
+function externalNextStatus(result) {
+  if (result.status === "checks_failed" || (result.checks && result.checks.exit_code !== 0))
+    return "Checks failed. Generate latest prompt to repair this session.";
+  if (result.status === "untested")
+    return "Checks could not finish. Review test details before continuing.";
+  if (result.status === "no_changes")
+    return "No edits this round. Generate latest prompt to continue with updated context.";
+  if (result.status === "partial_review" && result.checks?.exit_code === 0)
+    return "Checks passed. Generate latest prompt to continue.";
+  return "Review the development report before continuing.";
+}
 function clearExternalPrompt() {
   byId("external-prompt").value = "";
   byId("external-copy").disabled = true;
@@ -195,7 +215,8 @@ byId("external-sessions").addEventListener("click", async () => {
       if (latest) byId("checkpoint").value = latest.id;
     }
     clearExternalPrompt();
-    byId("external-status").textContent = "Saved sessions loaded, newest first. Resume the latest matching checkpoint or select New coding session to start separately.";
+    showExternalReport("", null);
+    byId("external-status").textContent = "Saved sessions loaded. Select your existing checkpoint.";
   } catch (error) {
     byId("external-status").textContent = error.message;
   } finally { lockExternal(false); }
@@ -210,7 +231,7 @@ byId("external-export").addEventListener("click", async () => {
     const result = await api("/api/coding/external/export", "POST", {
       issue, checkpoint_id: byId("checkpoint").value || null,
       paths: byId("external-manual").checked ? paths : null,
-      focus: byId("external-focus").value.trim(), profile: byId("external-profile").value, approved: true
+      focus: byId("external-focus").value.trim(), profile: byId("external-profile").value, work_scope: byId("external-scope").value, approved: true
     });
     await refreshCheckpoints(result.session_id);
     byId("external-files").value = result.paths.join("\n");
@@ -229,8 +250,7 @@ byId("external-export").addEventListener("click", async () => {
     byId("external-response").value = "";
     byId("external-import-approved").checked = false;
     byId("external-export-approved").checked = false;
-    byId("external-checks").hidden = !result.checks;
-    byId("external-checks").textContent = result.checks ? JSON.stringify(result.checks, null, 2) : "";
+    showExternalReport("", result.checks);
     byId("external-status").textContent = "Latest prompt generated for issue #" + issue + ". Review, copy, and paste into any web developer.";
   } catch (error) {
     byId("external-status").textContent = error.message;
@@ -275,10 +295,8 @@ byId("external-import").addEventListener("click", async () => {
     byId("external-response").value = "";
     byId("external-version").textContent = "Base: " + result.source_commit + "\nLatest workspace: " + result.workspace_version +
       "\nChanged files: " + (result.changed_paths.join(", ") || "none");
-    byId("external-status").textContent = (result.message || result.status) + " — " + result.summary +
-      "\nGenerate the next prompt from this same saved session.";
-    byId("external-checks").hidden = !result.checks;
-    byId("external-checks").textContent = result.checks ? JSON.stringify(result.checks, null, 2) : "";
+    byId("external-status").textContent = externalNextStatus(result);
+    showExternalReport([result.message, result.summary].filter(Boolean).join("\n\n"), result.checks);
     patch = result.patch || "";
     sourceCommit = result.source_commit || "";
     byId("review").hidden = !patch;

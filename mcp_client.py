@@ -39,13 +39,11 @@ async def _call_tool(name, arguments):
             await session.initialize()
             result = await session.call_tool(name, arguments)
 
-            if result.isError:
-                raise RuntimeError("MCP tool execution failed")
+    output = "\n".join(item.text for item in result.content if hasattr(item, "text"))
+    if result.isError:
+        raise RuntimeError(output or "MCP tool execution failed")
+    return output
 
-            return "\n".join(
-                item.text for item in result.content
-                if hasattr(item, "text")
-            )
 
 def list_mcp_tools():
     return anyio.run(_list_tools)

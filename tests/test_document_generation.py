@@ -151,6 +151,33 @@ class PDFGenerationTests(unittest.TestCase):
                     self.assertEqual(response.status_code, expected)
             provider.assert_not_called()
 
+    def test_native_office_creation_and_errors_through_mcp(self):
+        documents = Path.home() / "Documents" / "My AI Agent"
+        documents.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="office-test-", dir=documents) as directory:
+            root = Path(directory)
+            folder = root.relative_to(Path.home()).as_posix()
+            cases = [
+                ("docx", "First line\nSecond line", "Second line"),
+                ("xlsx", '{"sheets":[{"name":"Data","rows":[["Label"],["Second line"]]}]}', "Second line"),
+                ("pptx", '{"slides":[{"title":"","body":"First line\\nSecond line"}]}', "Second line"),
+            ]
+            for extension, content, expected in cases:
+                with self.subTest(extension=extension):
+                    result = call_mcp_tool("mac_create_document", {
+                        "filename": "native", "format": extension, "folder": folder, "content": content,
+                    })
+                    target = root / f"native.{extension}"
+                    self.assertIn(str(target), result)
+                    self.assertIn(expected, app.read_document_content(
+                        target.relative_to(documents).as_posix()
+                    )["content"])
+            with self.assertRaisesRegex(RuntimeError, "PDF content is empty"):
+                call_mcp_tool("mac_create_document", {
+                    "filename": "empty", "format": "pdf", "folder": folder, "content": " ",
+                })
+            self.assertFalse((root / "empty.pdf").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

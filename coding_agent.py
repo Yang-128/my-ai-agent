@@ -233,6 +233,7 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
     reason = "model finished"
     no_edit_reminders = 0
     inspected_since_edit = 0
+    action_log = []
     try:
         with workspace_factory(starting, stop) as workspace:
             emit("status", {"message": "Isolated worker started; no host files or network mounted."})
@@ -292,6 +293,9 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
                     summary = message.content[:5000]
                     emit("model", {"text": summary})
                 if not calls:
+                    if initial is not None and starting != before and workspace.snapshot() == starting:
+                        reason = "model reviewed prior changes without additional edits; verify coverage"
+                        break
                     if workspace.snapshot() == starting and no_edit_reminders < MAX_NO_EDIT_REMINDERS:
                         no_edit_reminders += 1
                         emit("status", {"message": "Completion rejected: no source changes. Requesting actual implementation."})
@@ -326,6 +330,14 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
                                           "query": str(args.get("query", ""))[:160],
                                           "start_line": args.get("start_line")})
                             result = execute_action(workspace, args)
+                            if args.get("operation") in ("replace", "create_file", "run_command"):
+                                action_log.append({
+                                    "operation": args.get("operation"),
+                                    "path": str(args.get("path", ""))[:240],
+                                    "argv": str(args.get("argv", ""))[:500],
+                                    "result": json.dumps(result, ensure_ascii=False)[:800],
+                                })
+                                action_log = action_log[-8:]
                             if args.get("operation") in ("replace", "create_file") and isinstance(result, dict) and result.get("changed"):
                                 inspected_since_edit = 0
                             elif args.get("operation") in ("list_files", "read_file", "search"):
@@ -357,7 +369,7 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
             progress = {
                 "provider": provider, "model": model, "reason": reason, "summary": summary,
                 "changed_paths": sorted(p for p in before.keys() | after.keys() if before.get(p) != after.get(p)),
-                "usage": dict(totals), "checks": None,
+                "usage": dict(totals), "checks": None, "recent_actions": action_log,
             }
             if checkpoint is not None:
                 checkpoint(revision, after, progress)

@@ -135,6 +135,22 @@ class PDFGenerationTests(unittest.TestCase):
                     self.assertEqual(client.get("/api/documents/download", params=params).status_code, 200)
             self.assertEqual(app.read_document_content("text.txt")["content"], "Example")
 
+    def test_chat_checks_document_reference_before_contacting_provider(self):
+        from fastapi.testclient import TestClient
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            app, "DOCUMENTS_ROOT", Path(directory)
+        ), patch("chat.get_provider_client") as provider, TestClient(app.app) as client:
+            (Path(directory) / "large.txt").write_text("A" * 12001)
+            conversation = client.post("/api/conversations").json()["id"]
+            for path, expected in (("../outside.txt", 403), ("missing.txt", 404), ("large.txt", 413)):
+                with self.subTest(path=path):
+                    response = client.post("/api/chat", json={
+                        "conversation_id": conversation, "message": "Summarize this.", "document_path": path,
+                    })
+                    self.assertEqual(response.status_code, expected)
+            provider.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

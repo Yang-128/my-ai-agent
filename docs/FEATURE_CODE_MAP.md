@@ -26,17 +26,17 @@
 
 ### Frontend behavior — `static/app.js`
 
-- **L2051** Page navigation: `async function showUsage() {`
-- **L2066** Return navigation: `function showChat() {`
-- **L2081** Reset countdown renderer: `function updateResetCountdowns() {`
-- **L2125** Usage data loading and rendering: `async function refreshUsage() {`
-- **L2134** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
-- **L2143** Usage API request: `const response = await fetch("/api/usage");`
-- **L2195** Daily quota status: `function isDailyLimitReached(item) {`
-- **L2208** Quota availability check: `function hasKnownDailyLimit(item) {`
-- **L2315** Quota formatting: `function quotaText(used, limit) {`
-- **L2430** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
-- **L2454** Refresh event: `.addEventListener("click", refreshUsage);`
+- **L2066** Page navigation: `async function showUsage() {`
+- **L2081** Return navigation: `function showChat() {`
+- **L2096** Reset countdown renderer: `function updateResetCountdowns() {`
+- **L2140** Usage data loading and rendering: `async function refreshUsage() {`
+- **L2149** Usage API request: `const refreshResponse = await fetch("/api/usage/refresh", {`
+- **L2158** Usage API request: `const response = await fetch("/api/usage");`
+- **L2210** Daily quota status: `function isDailyLimitReached(item) {`
+- **L2223** Quota availability check: `function hasKnownDailyLimit(item) {`
+- **L2330** Quota formatting: `function quotaText(used, limit) {`
+- **L2445** Usage navigation event: `usageNav.addEventListener("click", showUsage);`
+- **L2469** Refresh event: `.addEventListener("click", refreshUsage);`
 
 ### Backend API and refresh — `app.py`
 

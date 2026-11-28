@@ -39,6 +39,7 @@
 
 ### `chat.py`
 
+- `app`
 - `calendar_approval`
 - `gmail_approval`
 - `gmail_digest`

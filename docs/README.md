@@ -1,6 +1,7 @@
 # My AI Agent — Developer Documentation
 
 ## Documentation index
+- [Extension manifest specification](EXTENSION_MANIFEST.md)
 
 - [Architecture](ARCHITECTURE.md)
 - [Repository map](REPOSITORY_MAP.md) — generated

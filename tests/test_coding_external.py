@@ -2,9 +2,10 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from coding_checkpoints import CheckpointStore
-from external_development import export_prompt, import_response, snapshot_version, decode_response
+from external_development import export_prompt, import_response, snapshot_version, decode_response, suggested_paths
 from terminal_runner import CodingError
 
 
@@ -116,6 +117,54 @@ class ExternalDevelopmentTests(unittest.TestCase):
         second = self.export(first["session_id"])
         self.assertIn("tests/test_new.py", second["paths"])
         self.assertIn("tests/test_new.py", second["changed_paths"])
+
+
+    def test_automatic_scope_uses_handoff_and_live_dependencies(self):
+        self.base.update({
+            "chat.py": "from storage import save_message\nanswer = False\n",
+            "storage.py": "def save_message(): pass\n",
+            "app.py": "from chat import answer\n",
+            "static/service-worker.js": "const CACHE = 'v1';\n",
+            "docs/DATA_FLOW.md": "## Chat request\n`chat.py` loads from `storage.py`.\n",
+        })
+        first = self.export(paths=["chat.py", "static/app.js"])
+        self.submit(first, [{"operation": "replace", "path": "chat.py",
+                            "old": "False", "new": "True"}],
+                    summary="Reconnect works. app.py and static/service-worker.js were not exported.")
+        next_prompt = export_prompt(30, first["session_id"], focus="Durable run state after restart",
+                                    store=self.store, source=self.source, fetch=self.fetch)
+        self.assertTrue(next_prompt["automatic"])
+        for name in ("chat.py", "static/app.js", "storage.py", "app.py", "static/service-worker.js"):
+            self.assertIn(name, next_prompt["paths"])
+        self.assertIn("answer = True", next_prompt["prompt"])
+
+    def test_automatic_scope_reports_files_omitted_by_budget(self):
+        self.base.update({"storage.py": "a" * 300000, "app.py": "b" * 300000})
+        self.fetch = lambda n: {"number": n, "title": "Persistence", "body": "Modify chat.py, storage.py and app.py."}
+        with patch("external_development.MAX_PROMPT_BYTES", 20000):
+            result = self.export()
+        self.assertIn("chat.py", result["paths"])
+        self.assertIn("storage.py", result["omitted_paths"])
+        self.assertIn("app.py", result["omitted_paths"])
+        self.assertLessEqual(len(result["prompt"].encode("utf-8")), 20000)
+
+    def test_manual_selection_remains_exact(self):
+        self.base["storage.py"] = "def save_message(): pass\n"
+        self.base["chat.py"] = "from storage import save_message\n"
+        result = self.export(paths=["chat.py"])
+        self.assertFalse(result["automatic"])
+        self.assertEqual(result["paths"], ["chat.py"])
+        self.assertIn("storage.py", result["omitted_paths"])
+
+    def test_updated_coordinator_pins_original_session_base(self):
+        first = self.export()
+        self.submit(first, [{"operation": "replace", "path": "chat.py",
+                            "old": "False", "new": "True"}])
+        with patch("external_development.committed_source", return_value=("a" * 40, self.base)) as read:
+            next_prompt = export_prompt(30, first["session_id"], store=self.store, fetch=self.fetch)
+        read.assert_called_once_with(revision="a" * 40)
+        self.assertEqual(next_prompt["base_commit"], first["base_commit"])
+        self.assertIn("answer = True", next_prompt["prompt"])
 
     def test_json_fence_and_duplicate_keys(self):
         package = self.export()

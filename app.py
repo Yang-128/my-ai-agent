@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from chat import router as chat_router
+from coding_routes import router as coding_router
 from storage import (
     init_db,
     create_conversation,
@@ -85,6 +86,7 @@ async def service_worker():
 
 
 app.include_router(chat_router)
+app.include_router(coding_router)
 
 
 @app.get("/")

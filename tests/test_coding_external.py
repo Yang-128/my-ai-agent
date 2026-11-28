@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from coding_checkpoints import CheckpointStore
-from external_development import export_prompt, import_response, snapshot_version, decode_response, suggested_paths, apply_edits
+from external_development import export_prompt, import_response, snapshot_version, decode_response, suggested_paths, apply_edits, saved_patch
 from terminal_runner import CodingError
 
 
@@ -364,6 +364,22 @@ class ExternalDevelopmentTests(unittest.TestCase):
             import_response(30, first["session_id"], json.dumps(payload), "DeepSeek",
                             store=self.store, source=self.source, workspace_factory=FakeWorkspace)
         self.assertEqual(self.store.read(first["session_id"])["history"][-1]["package_id"], first["package_id"])
+
+    def test_saved_patch_reconstructs_latest_diff_without_invalidating_export(self):
+        first = self.export()
+        with patch.object(FakeWorkspace, "result", {"exit_code": 0, "stdout": "OK", "stderr": ""}):
+            imported = self.submit(first, [{"operation": "replace", "path": "chat.py",
+                                            "old": "False", "new": "True"}])
+        next_package = self.export(first["session_id"])
+        before = self.store.read(first["session_id"])
+        restored = saved_patch(first["session_id"], store=self.store, source=self.source)
+        self.assertEqual(restored["patch"], imported["patch"])
+        self.assertEqual(restored["source_commit"], first["base_commit"])
+        self.assertEqual(restored["workspace_version"], imported["workspace_version"])
+        self.assertEqual(restored["checks"]["exit_code"], 0)
+        self.assertEqual(restored["changed_paths"], ["chat.py"])
+        self.assertEqual(self.store.read(first["session_id"]), before)
+        self.assertEqual(before["history"][-1]["package_id"], next_package["package_id"])
 
     def test_json_fence_and_duplicate_keys(self):
         package = self.export()

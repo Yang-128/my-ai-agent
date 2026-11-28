@@ -330,8 +330,8 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
     plan = issue_plan(issue)
     digest = hashlib.sha256(json.dumps(issue, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     reports = {}
+    previous = handoff[-1] if handoff else {}
     if plan and handoff:
-        previous = handoff[-1]
         if (previous.get("issue_digest") == digest and previous.get("evidence_version") == 2
                 and (previous.get("checks") or {}).get("exit_code") == 0):
             for step_id, report in previous.get("plan_reports", {}).items():
@@ -498,7 +498,7 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
                             evidence = args.get("evidence")
                             if not paths or not isinstance(evidence, str) or not any(p in evidence for p in paths):
                                 result = {"error": "Cite an actual changed path in the evidence. Do not claim unmade changes."}
-                            elif args.get("step_id", "").startswith("A") and (latest_checks or {}).get("exit_code") != 0:
+                            elif isinstance(args.get("step_id"), str) and args["step_id"].startswith("A") and (latest_checks or {}).get("exit_code") != 0:
                                 result = {"error": "Run a focused passing check on the current snapshot before reporting acceptance."}
                             else:
                                 result = report_plan_progress(plan, reports, args)
@@ -593,8 +593,14 @@ def run_issue(number, stop, emit, *, fetch=fetch_issue, source=committed_source,
             if not patch:
                 return {"status": "no_changes", "source_commit": revision, "patch": "",
                         "summary": summary, "reason": reason, "usage": totals, "checks": None}
-            emit("status", {"message": "Running the standard repository checks independently."})
-            checks = workspace.command(["python", "scripts/check.py"], timeout=120)
+            saved_checks = previous.get("checks")
+            if (initial is not None and after == starting and previous.get("evidence_version") == 2
+                    and isinstance(saved_checks, dict) and saved_checks.get("exit_code") == 1):
+                checks = saved_checks
+                emit("status", {"message": "Unchanged snapshot; reusing previous failed standard checks."})
+            else:
+                emit("status", {"message": "Running the standard repository checks independently."})
+                checks = workspace.command(["python", "scripts/check.py"], timeout=120)
             emit("checks", checks)
             if workspace.snapshot() != after:
                 raise CodingError("Source changed during final checks; no verified patch is available.")

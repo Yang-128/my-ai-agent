@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from coding_checkpoints import CheckpointStore
-from external_development import export_prompt, import_response, snapshot_version, decode_response, suggested_paths
+from external_development import export_prompt, import_response, snapshot_version, decode_response, suggested_paths, apply_edits
 from terminal_runner import CodingError
 
 
@@ -165,6 +165,65 @@ class ExternalDevelopmentTests(unittest.TestCase):
         read.assert_called_once_with(revision="a" * 40)
         self.assertEqual(next_prompt["base_commit"], first["base_commit"])
         self.assertIn("answer = True", next_prompt["prompt"])
+
+
+    def test_compact_profile_uses_exact_relevant_excerpts(self):
+        filler = "# unrelated filler " + "x" * 140 + "\n"
+        self.base["app.py"] = (filler * 550 + "def approve_calendar_event():\n"
+                               "    return 'calendar validation'\n" + filler * 300)
+        self.base["tests/test_run_recovery.py"] = "def test_approval():\n    assert True\n"
+        self.fetch = lambda n: {"number": n, "title": "Calendar", "body": "Improve app.py."}
+        result = export_prompt(30, focus="Repair approve_calendar_event in app.py and tests/test_run_recovery.py.",
+                               profile="deepseek", store=self.store, source=self.source, fetch=self.fetch)
+        self.assertLessEqual(result["prompt_bytes"], 64000)
+        self.assertIn("app.py", result["partial_paths"])
+        self.assertIn("tests/test_run_recovery.py", result["paths"])
+        self.assertIn("return 'calendar validation'", result["prompt"])
+        marker = self.store.read(result["session_id"])["history"][-1]
+        self.assertTrue(any("return 'calendar validation'" in excerpt
+                            for excerpt in marker["exported_excerpts"]["app.py"]))
+        updated = self.submit(result, [{"operation": "replace", "path": "app.py",
+                                       "old": "return 'calendar validation'", "new": "return 'fixed'"}])
+        self.assertIn("app.py", updated["changed_paths"])
+
+    def test_excerpt_import_rejects_hidden_code_and_accepts_ordered_edits(self):
+        files = {"app.py": "visible = 1\nhidden = 2\n"}
+        excerpts = {"app.py": ["visible = 1\n"]}
+        with self.assertRaisesRegex(CodingError, "exported source excerpt"):
+            apply_edits(files, [{"operation": "replace", "path": "app.py",
+                                 "old": "hidden = 2", "new": "hidden = 3"}], ["app.py"], excerpts)
+        updated = apply_edits(files, [
+            {"operation": "replace", "path": "app.py", "old": "visible = 1", "new": "visible = 3"},
+            {"operation": "replace", "path": "app.py", "old": "visible = 3", "new": "visible = 4"},
+        ], ["app.py"], excerpts)
+        self.assertEqual(updated["app.py"], "visible = 4\nhidden = 2\n")
+        self.assertEqual(files["app.py"], "visible = 1\nhidden = 2\n")
+
+    def test_compact_failed_checks_prioritize_traceback_files(self):
+        self.base.update({"app.py": "def approve():\n    return False\n",
+                          "tests/test_run_recovery.py": "def test_approve():\n    assert False\n"})
+        first = self.export()
+        result = self.store.read(first["session_id"])
+        trace = ('ERROR: test_approve\nTraceback (most recent call last):\n'
+                 '  File "/workspace/tests/test_run_recovery.py", line 2, in test_approve\n'
+                 '  File "/workspace/app.py", line 2, in approve\n'
+                 'ValueError: Calendar time entries must match the pending proposals.\n')
+        result["history"].append({"reason": "external checks finished", "checks": {"exit_code": 1, "stderr": trace}})
+        self.store.save(first["session_id"], 30, first["base_commit"], result["files"], result["history"])
+        repair = export_prompt(30, first["session_id"], profile="small", store=self.store,
+                               source=self.source, fetch=self.fetch)
+        self.assertEqual(repair["paths"][:2], ["tests/test_run_recovery.py", "app.py"])
+        self.assertIn("Repair the failed checks before adding features", repair["prompt"])
+        self.assertLessEqual(repair["prompt_bytes"], 32000)
+
+    def test_blocked_handoff_prioritizes_missing_files_automatically(self):
+        self.base["storage.py"] = "def recover(): pass\n"
+        first = self.export()
+        self.submit(first, [], summary="Need storage.py to check recovery.")
+        second = export_prompt(30, first["session_id"], profile="deepseek", store=self.store,
+                               source=self.source, fetch=self.fetch)
+        self.assertEqual(second["paths"][0], "storage.py")
+        self.assertEqual(second["workspace_version"], first["workspace_version"])
 
     def test_json_fence_and_duplicate_keys(self):
         package = self.export()

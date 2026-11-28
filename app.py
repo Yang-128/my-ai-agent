@@ -188,6 +188,9 @@ def download_document(path: str):
 
 @app.get("/api/documents/content")
 def read_document_content(path: str):
+    from zipfile import BadZipFile
+
+    from docx.opc.exceptions import PackageNotFoundError
     from pypdf.errors import PdfReadError
 
     target = resolve_documents_path(path)
@@ -215,20 +218,26 @@ def read_document_content(path: str):
 
         elif suffix == ".pdf":
             from pypdf import PdfReader
-            reader = PdfReader(str(target))
-            content = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+            with target.open("rb") as stream:
+                reader = PdfReader(stream)
+                content = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+            if not content.strip():
+                raise ValueError("This PDF contains no extractable text. Download the original to view it.")
 
         elif suffix == ".xlsx":
             from openpyxl import load_workbook
             workbook = load_workbook(target, read_only=True, data_only=True)
-            sections = []
-            for sheet in workbook.worksheets:
-                rows = [
-                    " | ".join("" if value is None else str(value) for value in row)
-                    for row in sheet.iter_rows(values_only=True)
-                ]
-                sections.append(f"[{sheet.title}]\n" + "\n".join(rows))
-            content = "\n\n".join(sections)
+            try:
+                sections = []
+                for sheet in workbook.worksheets:
+                    rows = [
+                        " | ".join("" if value is None else str(value) for value in row)
+                        for row in sheet.iter_rows(values_only=True)
+                    ]
+                    sections.append(f"[{sheet.title}]\n" + "\n".join(rows))
+                content = "\n\n".join(sections)
+            finally:
+                workbook.close()
 
         elif suffix == ".pptx":
             from pptx import Presentation
@@ -243,11 +252,11 @@ def read_document_content(path: str):
             content = "\n\n".join(slides)
 
         else:
-            content = target.read_text(encoding="utf-8")
-            if "\\x00" in content:
+            content = target.read_text(encoding="utf-8-sig")
+            if "\x00" in content:
                 raise UnicodeError("Binary file")
 
-    except (UnicodeError, OSError, ValueError, ImportError, PdfReadError) as error:
+    except (UnicodeError, OSError, ValueError, ImportError, PdfReadError, BadZipFile, PackageNotFoundError, KeyError) as error:
         raise HTTPException(status_code=415, detail="This file cannot be previewed: " + str(error))
 
     return {

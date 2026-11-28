@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import tarfile
+import tempfile
 import threading
 import time
 import uuid
@@ -29,7 +30,8 @@ class CodingCancelled(CodingError):
 def process(argv, *, data=b"", timeout=30, cap=32_000, stop=None):
     """Bound both streams and wait; killing docker exec is followed by container cleanup."""
     env = {"PATH": HOST_PATH, "HOME": str(Path.home()), "LANG": "C.UTF-8",
-           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+           "GIT_NO_LAZY_FETCH": "1", "GIT_TERMINAL_PROMPT": "0"}
     buffers = [bytearray(), bytearray()]
     truncated = [False, False]
     with subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -179,6 +181,7 @@ class DockerWorkspace:
         self.name = "my-ai-agent-coding-" + uuid.uuid4().hex
         self.base = None
         self.started = False
+        self.config = None
 
     def __enter__(self):
         try:
@@ -188,8 +191,11 @@ class DockerWorkspace:
             self.base = ["docker", "--context", context]
             endpoint = checked(self.base + ["context", "inspect", context,
                                "--format", "{{.Endpoints.docker.Host}}"], cap=2000).decode().strip()
-            if not endpoint.startswith("unix://"):
+            if not endpoint.startswith("unix://") or not Path(endpoint[7:]).is_absolute():
                 raise CodingError("Only a local Unix-socket Docker engine is supported.")
+            # A fresh CLI config prevents automatic injection of user-configured proxy credentials.
+            self.config = tempfile.TemporaryDirectory(prefix="agent-coding-docker-")
+            self.base = ["docker", "--config", self.config.name, "--host", endpoint]
             if checked(self.base + ["info", "--format", "{{.OSType}}"]).strip() != b"linux":
                 raise CodingError("A Linux Docker engine is required.")
             # Never pull an image as an implicit side effect of a coding task.
@@ -197,14 +203,14 @@ class DockerWorkspace:
             if not re.fullmatch(r"sha256:[a-f0-9]{64}", image):
                 raise CodingError("Build the local coding image first.")
             self.started = True
-            checked(self.base + ["run", "-d", "--pull=never", "--name", self.name,
+            checked(self.base + ["run", "-d", "--rm", "--pull=never", "--name", self.name,
                 "--network", "none", "--read-only", "--cap-drop", "ALL",
                 "--security-opt", "no-new-privileges", "--pids-limit", "128",
                 "--memory", "1024m", "--cpus", "2", "--ipc", "none", "--init",
                 "--user", "10001:10001", "--log-driver", "none",
                 "--tmpfs", "/workspace:rw,nosuid,nodev,noexec,size=64m,uid=10001,gid=10001,mode=0700",
                 "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777",
-                "--entrypoint", "/bin/sleep", image, "infinity"], timeout=30, stop=self.stop)
+                "--entrypoint", "/bin/sleep", image, "900"], timeout=30, stop=self.stop)
             checked(self.exec_args(["tar", "-xf", "-", "-C", "/workspace"]),
                     data=source_tar(self.files), stop=self.stop)
             return self
@@ -254,6 +260,9 @@ class DockerWorkspace:
             if code != 0 and b"No such container" not in err:
                 raise CodingError("Could not confirm worker removal. Inspect local Docker before another run.")
             self.started = False
+        if self.config:
+            self.config.cleanup()
+            self.config = None
 
     def __exit__(self, *_):
         self.close()

@@ -29,6 +29,10 @@
 - `app`
 - `mcp_server`
 
+### `calculations.py`
+
+- No imports of other local Python modules detected.
+
 ### `calendar_approval.py`
 
 - `runtime`
@@ -63,6 +67,7 @@
 
 ### `mcp_server.py`
 
+- `calculations`
 - `google_integrations`
 - `storage`
 - `web_search`
@@ -119,6 +124,12 @@
 
 - `mcp_client`
 
+### `tests/test_calculations.py`
+
+- `calculations`
+- `mcp_client`
+- `tool_loading`
+
 ### `tests/test_calendar_approval.py`
 
 - `calendar_approval`
@@ -132,7 +143,9 @@
 
 ### `tests/test_document_generation.py`
 
+- `app`
 - `mcp_client`
+- `mcp_server`
 
 ### `tests/test_gmail_digest.py`
 
@@ -251,6 +264,9 @@
 - `lxml==6.1.3`
 - `pypdf==7.1.0`
 - `reportlab==5.1.0`
+- `python-docx==1.2.0`
+- `openpyxl==3.1.5`
+- `python-pptx==1.0.2`
 - `keyring==25.7.0; sys_platform == "darwin"`
 
 ### JavaScript

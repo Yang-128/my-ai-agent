@@ -26,39 +26,48 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 113 | function | `resolve_browser_path` |
 | 133 | function | `resolve_documents_path` |
 | 143 | function | `browse_documents` |
-| 179 | function | `read_document_content` |
-| 249 | function | `browse_files` |
-| 291 | function | `read_browser_file` |
-| 317 | async function | `health` |
-| 322 | function | `conversations` |
-| 327 | function | `new_conversation` |
-| 333 | function | `conversation_detail` |
-| 343 | function | `check_free_models` |
-| 357 | function | `check_free_providers` |
-| 365 | function | `require_local_provider_request` |
-| 388 | function | `connect_provider` |
-| 424 | function | `disconnect_provider` |
-| 443 | function | `export_provider_configuration` |
-| 451 | function | `import_provider_configuration` |
-| 461 | function | `provider_status` |
-| 485 | function | `tools_status` |
-| 502 | function | `tools_server_status` |
-| 519 | function | `run_tool` |
-| 535 | function | `daily_usage` |
-| 541 | function | `refresh_openrouter_usage` |
-| 555 | function | `refresh_usage` |
-| 616 | function | `_int_header` |
-| 625 | function | `google_calendar_connection_status` |
-| 629 | function | `_calendar_signin_cookie` |
-| 636 | function | `connect_additional_calendar_account` |
-| 651 | function | `google_calendar_connect` |
-| 659 | function | `google_calendar_callback` |
-| 700 | function | `google_calendar_approve_event` |
-| 883 | function | `google_gmail_connection_status` |
-| 888 | function | `google_gmail_available_attachments` |
-| 916 | function | `google_tasks_approve` |
-| 956 | function | `google_gmail_approve_message` |
-| 1003 | function | `google_calendar_disconnect` |
+| 179 | function | `download_document` |
+| 190 | function | `read_document_content` |
+| 271 | function | `browse_files` |
+| 313 | function | `read_browser_file` |
+| 339 | async function | `health` |
+| 344 | function | `conversations` |
+| 349 | function | `new_conversation` |
+| 355 | function | `conversation_detail` |
+| 365 | function | `check_free_models` |
+| 379 | function | `check_free_providers` |
+| 387 | function | `require_local_provider_request` |
+| 410 | function | `connect_provider` |
+| 446 | function | `disconnect_provider` |
+| 465 | function | `export_provider_configuration` |
+| 473 | function | `import_provider_configuration` |
+| 483 | function | `provider_status` |
+| 507 | function | `tools_status` |
+| 524 | function | `tools_server_status` |
+| 541 | function | `run_tool` |
+| 557 | function | `daily_usage` |
+| 563 | function | `refresh_openrouter_usage` |
+| 577 | function | `refresh_usage` |
+| 638 | function | `_int_header` |
+| 647 | function | `google_calendar_connection_status` |
+| 651 | function | `_calendar_signin_cookie` |
+| 658 | function | `connect_additional_calendar_account` |
+| 673 | function | `google_calendar_connect` |
+| 681 | function | `google_calendar_callback` |
+| 722 | function | `google_calendar_approve_event` |
+| 905 | function | `google_gmail_connection_status` |
+| 910 | function | `google_gmail_available_attachments` |
+| 938 | function | `google_tasks_approve` |
+| 978 | function | `google_gmail_approve_message` |
+| 1025 | function | `google_calendar_disconnect` |
+
+### `calculations.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 5 | constant | `UNITS` |
+| 15 | function | `calculate` |
+| 55 | function | `summarize_rows` |
 
 ### `calendar_approval.py`
 
@@ -180,34 +189,36 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 30 | constant | `MAC_MAX_READ_SIZE` |
 | 33 | function | `resolve_mac_path` |
 | 40 | function | `mac_walk_directories` |
-| 52 | function | `list_google_task_lists` |
-| 65 | function | `propose_google_task_change` |
-| 85 | function | `search_google_tasks` |
-| 93 | function | `create_calendar_events` |
-| 108 | function | `search_calendar_events` |
-| 138 | function | `get_calendar_event_details` |
-| 145 | function | `update_calendar_event` |
-| 168 | function | `delete_calendar_event` |
-| 180 | function | `gmail_message_summary` |
-| 204 | function | `gmail_message_content` |
-| 207 | function | `gmail_message_content.extract` |
-| 238 | function | `search_gmail_messages` |
-| 301 | function | `get_gmail_message` |
-| 316 | function | `get_gmail_thread` |
-| 341 | function | `send_gmail_message` |
-| 365 | function | `get_current_time` |
-| 372 | function | `read_text_file` |
-| 387 | function | `search_conversations` |
-| 483 | function | `get_conversation_history` |
-| 547 | function | `mac_list_files` |
-| 576 | function | `mac_search_files` |
-| 624 | function | `mac_read_file` |
-| 711 | function | `mac_search_file_contents` |
-| 729 | function | `mac_search_file_contents.extract_sections` |
-| 867 | function | `mac_get_system_info` |
-| 882 | function | `mac_create_document` |
-| 1082 | function | `web_search` |
-| 1088 | function | `web_fetch` |
+| 52 | function | `summarize_decimal_rows` |
+| 60 | function | `calculate_decimal` |
+| 68 | function | `list_google_task_lists` |
+| 81 | function | `propose_google_task_change` |
+| 101 | function | `search_google_tasks` |
+| 109 | function | `create_calendar_events` |
+| 124 | function | `search_calendar_events` |
+| 154 | function | `get_calendar_event_details` |
+| 161 | function | `update_calendar_event` |
+| 184 | function | `delete_calendar_event` |
+| 196 | function | `gmail_message_summary` |
+| 220 | function | `gmail_message_content` |
+| 223 | function | `gmail_message_content.extract` |
+| 254 | function | `search_gmail_messages` |
+| 317 | function | `get_gmail_message` |
+| 332 | function | `get_gmail_thread` |
+| 357 | function | `send_gmail_message` |
+| 381 | function | `get_current_time` |
+| 388 | function | `read_text_file` |
+| 403 | function | `search_conversations` |
+| 499 | function | `get_conversation_history` |
+| 563 | function | `mac_list_files` |
+| 592 | function | `mac_search_files` |
+| 640 | function | `mac_read_file` |
+| 727 | function | `mac_search_file_contents` |
+| 745 | function | `mac_search_file_contents.extract_sections` |
+| 883 | function | `mac_get_system_info` |
+| 898 | function | `mac_create_document` |
+| 1109 | function | `web_search` |
+| 1115 | function | `web_fetch` |
 
 ### `provider_configuration.py`
 
@@ -325,20 +336,20 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 26 | function | `git_output` |
 | 33 | function | `safe_path` |
 | 41 | function | `file_purpose` |
-| 124 | function | `inventory` |
-| 157 | function | `python_symbols` |
-| 165 | function | `python_symbols.walk` |
-| 188 | function | `js_symbols` |
-| 223 | function | `rust_symbols` |
-| 256 | function | `imports` |
-| 270 | function | `javascript_imports` |
-| 286 | function | `rust_imports` |
-| 295 | function | `frontend_external_assets` |
-| 302 | function | `declared_dependencies` |
-| 331 | function | `generate_feature_code_map` |
-| 354 | function | `generate_feature_code_map.read_lines` |
-| 361 | function | `generate_feature_code_map.section` |
-| 457 | function | `main` |
+| 127 | function | `inventory` |
+| 160 | function | `python_symbols` |
+| 168 | function | `python_symbols.walk` |
+| 191 | function | `js_symbols` |
+| 226 | function | `rust_symbols` |
+| 259 | function | `imports` |
+| 273 | function | `javascript_imports` |
+| 289 | function | `rust_imports` |
+| 298 | function | `frontend_external_assets` |
+| 305 | function | `declared_dependencies` |
+| 334 | function | `generate_feature_code_map` |
+| 357 | function | `generate_feature_code_map.read_lines` |
+| 364 | function | `generate_feature_code_map.section` |
+| 460 | function | `main` |
 
 ### `storage.py`
 
@@ -361,11 +372,11 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 290 | function | `record_usage` |
 | 353 | function | `record_provider_request` |
 | 416 | function | `get_daily_usage` |
-| 648 | function | `record_turn_usage` |
-| 665 | function | `get_turn_usage` |
-| 714 | function | `get_tool_settings` |
-| 723 | function | `set_tools_enabled` |
-| 736 | function | `set_tool_enabled` |
+| 656 | function | `record_turn_usage` |
+| 673 | function | `get_turn_usage` |
+| 722 | function | `get_tool_settings` |
+| 731 | function | `set_tools_enabled` |
+| 744 | function | `set_tool_enabled` |
 
 ### `task_approval.py`
 
@@ -380,6 +391,17 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 59 | function | `prepare_google_task_proposal` |
 | 102 | function | `only_list_task_title` |
 | 116 | function | `prepare_only_list_create` |
+
+### `tests/test_calculations.py`
+
+| Line | Kind | Symbol |
+|---:|---|---|
+| 7 | class | `CalculationTests` |
+| 8 | function | `CalculationTests.test_decimal_sum_and_conversion` |
+| 12 | function | `CalculationTests.test_invalid_operations` |
+| 17 | function | `CalculationTests.test_calculation_loads_its_tool` |
+| 22 | function | `CalculationTests.test_grouped_totals_skip_blanks_and_preserve_first_seen_order` |
+| 32 | function | `CalculationTests.test_mcp_returns_decimal_result` |
 
 ### `tests/test_calendar_approval.py`
 
@@ -413,8 +435,12 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 
 | Line | Kind | Symbol |
 |---:|---|---|
-| 10 | class | `PDFGenerationTests` |
-| 11 | function | `PDFGenerationTests.test_mcp_creates_and_verifies_readable_pdf` |
+| 14 | class | `PDFGenerationTests` |
+| 15 | function | `PDFGenerationTests.test_mcp_creates_and_verifies_readable_pdf` |
+| 51 | function | `PDFGenerationTests.test_pdf_failure_preserves_existing_output` |
+| 65 | function | `PDFGenerationTests.test_original_download_and_preview_failure` |
+| 85 | function | `PDFGenerationTests.test_office_previews_keep_line_breaks` |
+| 116 | function | `PDFGenerationTests.test_unreadable_documents_report_preview_failure` |
 
 ### `tests/test_gmail_digest.py`
 
@@ -436,6 +462,8 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 12 | function | `GoogleApprovalTests.test_title_only_calendar_update` |
 | 23 | function | `GoogleApprovalTests.test_task_approval_can_only_execute_once` |
 | 34 | function | `GoogleApprovalTests.test_private_google_files_are_excluded_from_project_browser` |
+| 41 | function | `GoogleApprovalTests.test_task_http_approval_preserves_list_target_and_partial_edits` |
+| 76 | function | `GoogleApprovalTests.test_declined_and_expired_task_proposals_never_write` |
 
 ### `tests/test_provider_compatibility.py`
 
@@ -538,6 +566,7 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 18 | function | `ConversationTests.test_saved_conversation_retains_title_and_message_order` |
 | 32 | function | `ConversationTests.test_full_titles_and_legacy_title_recovery` |
 | 49 | function | `ConversationTests.test_unknown_conversation` |
+| 52 | function | `ConversationTests.test_usage_distinguishes_reference_api_and_unknown_limits` |
 
 ### `tests/test_tool_loading.py`
 
@@ -581,15 +610,15 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 |---:|---|---|
 | 6 | constant | `EXPAND_TOOL_NAME` |
 | 8 | constant | `GROUPS` |
-| 20 | constant | `EXPAND_TOOL` |
-| 50 | function | `tool_name` |
-| 54 | function | `tool_group` |
-| 77 | constant | `PATTERNS` |
-| 119 | constant | `GENERAL_START` |
-| 128 | constant | `EXTERNAL_HINT` |
-| 140 | function | `scoped_tools` |
-| 158 | function | `select_initial_tools` |
-| 221 | function | `expand_tool_groups` |
+| 21 | constant | `EXPAND_TOOL` |
+| 51 | function | `tool_name` |
+| 55 | function | `tool_group` |
+| 80 | constant | `PATTERNS` |
+| 122 | constant | `GENERAL_START` |
+| 131 | constant | `EXTERNAL_HINT` |
+| 143 | function | `scoped_tools` |
+| 161 | function | `select_initial_tools` |
+| 229 | function | `expand_tool_groups` |
 
 ### `tools.py`
 
@@ -622,68 +651,68 @@ Python symbols are extracted with the standard-library AST. JavaScript and Rust 
 | 15 | function | `renderImagePreview` |
 | 70 | function | `fileToDataUrl` |
 | 80 | function | `capability` |
-| 92 | function | `groupTools` |
-| 128 | function | `openModelDiscovery` |
-| 181 | function | `credentialLabel` |
-| 228 | function | `getSelectedModelInfo` |
-| 242 | function | `renderDiscoveredModels` |
-| 244 | function | `score` |
-| 304 | function | `checkCatalog` |
-| 344 | function | `populateModelSelector` |
-| 374 | function | `updateModelDisplay` |
-| 385 | function | `providerDisplayName` |
-| 389 | function | `rebuildProviderPicker` |
-| 421 | function | `configurationRequest` |
-| 446 | function | `showProviderManagerTab` |
-| 477 | function | `openProviderSetup` |
-| 524 | function | `openProviderManagement` |
-| 590 | function | `applyProviderConfiguration` |
-| 675 | function | `selectProvider` |
-| 693 | function | `findProviders` |
-| 758 | function | `refreshProviderStatus` |
-| 817 | function | `scrollToBottom` |
-| 822 | function | `renderTaskApprovalCard` |
-| 837 | function | `addDetail` |
-| 845 | function | `display` |
-| 880 | function | `decide` |
-| 911 | function | `renderMessageContent` |
-| 978 | constant | `CALENDAR_TIME_ZONE` |
-| 980 | function | `getCalendarDateParts` |
-| 995 | function | `formatDate` |
-| 1016 | function | `toDateTimeLocal` |
-| 1125 | function | `getDateAndTime` |
-| 1161 | function | `makeTimePicker` |
-| 1165 | function | `makeSelect` |
-| 1275 | function | `updateWeekdayVisibility` |
-| 1325 | function | `updateTimeVisibility` |
-| 1344 | function | `refreshDetails` |
-| 1434 | function | `decide` |
-| 1457 | function | `markInvalid` |
-| 1616 | function | `addField` |
-| 1660 | function | `renderAttachments` |
-| 1729 | function | `decide` |
-| 1775 | function | `addMessage` |
-| 1819 | function | `refreshHistory` |
-| 1842 | function | `openConversation` |
-| 1877 | function | `newChat` |
-| 1901 | function | `sendMessage` |
-| 2017 | function | `useSuggestion` |
-| 2021 | function | `initialize` |
-| 2050 | function | `showUsage` |
-| 2065 | function | `showChat` |
-| 2080 | function | `updateResetCountdowns` |
-| 2124 | function | `refreshUsage` |
-| 2194 | function | `isDailyLimitReached` |
-| 2207 | function | `hasKnownDailyLimit` |
+| 93 | function | `groupTools` |
+| 129 | function | `openModelDiscovery` |
+| 182 | function | `credentialLabel` |
+| 229 | function | `getSelectedModelInfo` |
+| 243 | function | `renderDiscoveredModels` |
+| 245 | function | `score` |
+| 305 | function | `checkCatalog` |
+| 345 | function | `populateModelSelector` |
+| 375 | function | `updateModelDisplay` |
+| 386 | function | `providerDisplayName` |
+| 390 | function | `rebuildProviderPicker` |
+| 422 | function | `configurationRequest` |
+| 447 | function | `showProviderManagerTab` |
+| 478 | function | `openProviderSetup` |
+| 525 | function | `openProviderManagement` |
+| 591 | function | `applyProviderConfiguration` |
+| 676 | function | `selectProvider` |
+| 694 | function | `findProviders` |
+| 759 | function | `refreshProviderStatus` |
+| 818 | function | `scrollToBottom` |
+| 823 | function | `renderTaskApprovalCard` |
+| 838 | function | `addDetail` |
+| 846 | function | `display` |
+| 881 | function | `decide` |
+| 912 | function | `renderMessageContent` |
+| 979 | constant | `CALENDAR_TIME_ZONE` |
+| 981 | function | `getCalendarDateParts` |
+| 996 | function | `formatDate` |
+| 1017 | function | `toDateTimeLocal` |
+| 1126 | function | `getDateAndTime` |
+| 1162 | function | `makeTimePicker` |
+| 1166 | function | `makeSelect` |
+| 1276 | function | `updateWeekdayVisibility` |
+| 1326 | function | `updateTimeVisibility` |
+| 1345 | function | `refreshDetails` |
+| 1435 | function | `decide` |
+| 1458 | function | `markInvalid` |
+| 1617 | function | `addField` |
+| 1661 | function | `renderAttachments` |
+| 1730 | function | `decide` |
+| 1776 | function | `addMessage` |
+| 1820 | function | `refreshHistory` |
+| 1843 | function | `openConversation` |
+| 1878 | function | `newChat` |
+| 1902 | function | `sendMessage` |
+| 2018 | function | `useSuggestion` |
+| 2022 | function | `initialize` |
+| 2051 | function | `showUsage` |
+| 2066 | function | `showChat` |
+| 2081 | function | `updateResetCountdowns` |
+| 2125 | function | `refreshUsage` |
+| 2195 | function | `isDailyLimitReached` |
+| 2208 | function | `hasKnownDailyLimit` |
 | 2315 | function | `quotaText` |
 | 2459 | function | `refreshTools` |
-| 2648 | function | `showTools` |
-| 2668 | function | `loadFiles` |
-| 2727 | function | `formatFileSize` |
-| 2734 | function | `previewFile` |
-| 2772 | function | `showFiles` |
-| 2795 | function | `refreshGoogleCalendarStatus` |
-| 2818 | function | `refreshGoogleGmailStatus` |
+| 2649 | function | `showTools` |
+| 2671 | function | `loadFiles` |
+| 2736 | function | `formatFileSize` |
+| 2743 | function | `previewFile` |
+| 2788 | function | `showFiles` |
+| 2811 | function | `refreshGoogleCalendarStatus` |
+| 2834 | function | `refreshGoogleGmailStatus` |
 
 ### `static/service-worker.js`
 

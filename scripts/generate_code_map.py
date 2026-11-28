@@ -40,6 +40,9 @@ def safe_path(value):
 
 def file_purpose(name):
     purposes = {
+        "CONTRIBUTING.md": "Contribution workflow and bug reporting.",
+        ".github/pull_request_template.md": "Pull request checklist.",
+        "calculations.py": "Decimal calculations and unit conversions.",
         'tool_loading.py': 'tool loading.',
         'tool_loading.py': 'Tool loading.',
         'provider_keychain.py': 'provider keychain.',

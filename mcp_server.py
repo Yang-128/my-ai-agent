@@ -49,6 +49,22 @@ def mac_walk_directories(start):
 
 
 @mcp.tool()
+def summarize_decimal_rows(rows: list[dict[str, str | None]]) -> list[dict]:
+    """Group up to 200 rows by group and sum their amount fields as decimals. Blank amounts are skipped. Groups stay in first-seen order."""
+    from calculations import summarize_rows
+
+    return summarize_rows(rows)
+
+
+@mcp.tool()
+def calculate_decimal(operation: str, values: list[str], from_unit: str = "", to_unit: str = "") -> dict:
+    """Calculate an exact-decimal sum, average, divide, percentage (part / total × 100), or convert one quantity. Pass values as decimal strings. Units: mm, cm, m, km, in, ft, mi, g, kg, lb, s, min, h."""
+    from calculations import calculate
+
+    return calculate(operation, values, from_unit, to_unit)
+
+
+@mcp.tool()
 def list_google_task_lists() -> str:
     """List Google Tasks lists, including empty lists. Returns each list's ID and title."""
     import json

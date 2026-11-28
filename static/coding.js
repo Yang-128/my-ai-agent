@@ -210,15 +210,17 @@ byId("external-export").addEventListener("click", async () => {
     const result = await api("/api/coding/external/export", "POST", {
       issue, checkpoint_id: byId("checkpoint").value || null,
       paths: byId("external-manual").checked ? paths : null,
-      focus: byId("external-focus").value.trim(), approved: true
+      focus: byId("external-focus").value.trim(), profile: byId("external-profile").value, approved: true
     });
     await refreshCheckpoints(result.session_id);
     byId("external-files").value = result.paths.join("\n");
+    byId("external-budget").textContent = "Prompt: " + Math.ceil(result.prompt_bytes / 1000) + " / " + Math.ceil(result.prompt_budget / 1000) + " KB\n" +
+      "Files shown as exact excerpts: " + ((result.partial_paths || []).join(", ") || "none");
     const omitted = result.omitted_paths || [];
     byId("external-omitted").hidden = !omitted.length;
     byId("external-omitted").textContent = omitted.length ?
       "Related files not included in this package (scope or size limit):\n" + omitted.join("\n") +
-      "\nFor a narrower next milestone, specify its focus or use manual selection." : "";
+      "\nThe next automatic package can prioritize omitted files if the developer requests them." : "";
     byId("external-available").textContent = result.available_paths.join("\n");
     byId("external-prompt").value = result.prompt;
     byId("external-version").textContent = "Base: " + result.base_commit + "\nWorkspace: " + result.workspace_version +
@@ -268,6 +270,7 @@ byId("external-import").addEventListener("click", async () => {
     }
     byId("external-focus").value = "";
     byId("external-omitted").hidden = true;
+    byId("external-budget").textContent = "";
     clearExternalPrompt();
     byId("external-response").value = "";
     byId("external-version").textContent = "Base: " + result.source_commit + "\nLatest workspace: " + result.workspace_version +

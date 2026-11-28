@@ -40,8 +40,11 @@ textarea{width:100%;min-height:120px;font:13px ui-monospace,monospace;resize:ver
 <h2>External web developer</h2>
 <p>Work with a free web conversation manually. No provider API keys, desktop app, or automatic browser access required.</p>
 <button id="external-sessions">Load saved sessions only</button>
-<p><small>Use the issue and checkpoint selector above. Resume the same checkpoint when switching providers. New sessions use this checkout's committed HEAD; older bases must be opened in their matching checkout.</small></p>
-<label>Source paths to include (one per line; blank selects issue references and changed files)<textarea id="external-files" placeholder="chat.py&#10;static/app.js"></textarea></label>
+<p><small>Use the issue and checkpoint selector above. Resume the same checkpoint when switching providers. New sessions use this checkout's committed HEAD; external sessions retain their original locally available base commit.</small></p>
+<label>Optional next milestone (automatic source selection uses this focus)<textarea id="external-focus" maxlength="2000" placeholder="Recover durable execution state after restart"></textarea></label>
+<label><input type="checkbox" id="external-manual"> Use manual source selection instead of automatic dependency discovery</label>
+<label>Source paths (one per line; automatic mode displays selected files)<textarea id="external-files" placeholder="Automatically selected from issue, roadmap, imports and checkpoint" readonly></textarea></label>
+<pre id="external-omitted" hidden></pre>
 <details><summary>Available source paths</summary><pre id="external-available"></pre></details>
 <label><input type="checkbox" id="external-export-approved"> I authorize preparing the selected project source for external sharing. I will review the generated prompt before pasting it into a provider.</label>
 <button id="external-export">Generate latest prompt</button>

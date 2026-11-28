@@ -2755,6 +2755,44 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function renderDocumentLayout(blocks) {
+  const layout = document.createElement("div");
+  layout.className = "document-layout";
+  for (const block of blocks) {
+    if (block.kind === "paragraph") {
+      const heading = /^Heading ([1-6])$/.exec(block.style);
+      const paragraph = document.createElement(heading ? "h" + heading[1] : block.style === "Title" ? "h1" : "p");
+      paragraph.textContent = block.text || "\u00a0";
+      layout.append(paragraph);
+    } else if (block.kind === "table") {
+      const table = document.createElement("table");
+      if (block.title) table.createCaption().textContent = block.title;
+      for (const row of block.rows) {
+        const tr = table.insertRow();
+        for (const value of row) tr.insertCell().textContent = value;
+      }
+      const scroll = document.createElement("div");
+      scroll.className = "document-table";
+      scroll.append(table);
+      layout.append(scroll);
+    } else if (block.kind === "slide") {
+      const title = document.createElement("h3");
+      title.textContent = block.title;
+      const slide = document.createElement("div");
+      slide.className = "document-slide";
+      if (Number.isFinite(block.aspect) && block.aspect > 0) slide.style.aspectRatio = block.aspect;
+      for (const shape of block.shapes) {
+        const box = document.createElement(shape.heading ? "strong" : "div");
+        box.textContent = shape.text;
+        for (const key of ["left", "top", "width", "height"]) box.style[key] = shape[key] + "%";
+        slide.append(box);
+      }
+      layout.append(title, slide);
+    }
+  }
+  return layout;
+}
+
 async function previewFile(path) {
   const request = ++previewRequest;
   const preview = document.getElementById("file-preview");
@@ -2765,14 +2803,29 @@ async function previewFile(path) {
   const status = document.createElement("p");
   status.textContent = "Loading preview...";
   preview.replaceChildren(download, status);
+  const extension = path.split(".").pop().toLowerCase();
+  let pdf;
+  if (extension === "pdf") {
+    const url = "/api/documents/pdf?path=" + encodeURIComponent(path);
+    const open = document.createElement("a");
+    open.href = url;
+    open.target = "_blank";
+    open.rel = "noopener";
+    open.textContent = "Open PDF in a new tab";
+    pdf = document.createElement("iframe");
+    pdf.className = "document-pdf";
+    pdf.title = path.split("/").pop();
+    pdf.src = url;
+    preview.append(open, pdf);
+  }
 
   try {
-    const response = await fetch(`${endpoint}?path=${encodeURIComponent(path)}`);
+    const response = await fetch(`${endpoint}?layout=true&path=${encodeURIComponent(path)}`);
     const data = await response.json();
     if (request !== previewRequest) return;
     if (!response.ok) throw new Error(data.detail || "Could not preview file");
 
-    preview.replaceChildren();
+    if (!pdf) preview.replaceChildren();
 
     const heading = document.createElement("div");
     heading.className = "file-preview-heading";
@@ -2785,14 +2838,13 @@ async function previewFile(path) {
 
     heading.append(name, size);
 
-    const extension = data.name.split(".").pop().toLowerCase();
     const content = document.createElement("pre");
     content.className = "file-preview-content";
     content.textContent = data.content;
 
     const format = document.createElement("small");
     format.className = "file-preview-format";
-    format.textContent = extension.toUpperCase() + " · Text preview";
+    format.textContent = extension.toUpperCase() + (data.layout ? " · Layout preview" : " · Text preview");
 
     const attach = document.createElement("button");
     attach.type = "button";
@@ -2804,9 +2856,15 @@ async function previewFile(path) {
       document.querySelector('#mobile-navigation [data-page="chat"]').click();
       input.focus();
     };
-    preview.append(heading, download, attach, format, content);
+    if (pdf) {
+      status.remove();
+      pdf.before(heading, attach);
+    } else {
+      preview.append(heading, download, attach, format,
+        data.layout ? renderDocumentLayout(data.layout) : content);
+    }
   } catch (error) {
-    if (request === previewRequest) status.textContent = "Could not preview file: " + error.message;
+    if (request === previewRequest) status.textContent = (pdf ? "Text attachment unavailable: " : "Could not preview file: ") + error.message;
   }
 }
 

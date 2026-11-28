@@ -1052,7 +1052,7 @@ def mac_create_document(
             rows = sheet_data.get("rows", [])
             for row in rows:
                 sheet.append(row)
-            if sheet.max_row:
+            if any(rows):
                 for cell in sheet[1]:
                     cell.font = Font(bold=True, color="FFFFFF")
                     cell.fill = PatternFill("solid", fgColor="243B53")
@@ -1082,7 +1082,8 @@ def mac_create_document(
             layout = presentation.slide_layouts[0] if index == 0 else presentation.slide_layouts[1]
             slide = presentation.slides.add_slide(layout)
             slide.shapes.title.text = str(item.get("title", f"Slide {index + 1}"))
-            title_run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
+            title_paragraph = slide.shapes.title.text_frame.paragraphs[0]
+            title_run = title_paragraph.runs[0] if title_paragraph.runs else title_paragraph.add_run()
             title_run.font.size = Pt(30)
             title_run.font.bold = True
             title_run.font.color.rgb = RGBColor(36, 59, 83)

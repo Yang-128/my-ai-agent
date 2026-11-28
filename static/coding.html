@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My AI Agent — Coding Mode</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui,sans-serif;background:#111214;color:#e7e9ec}
+body{max-width:900px;margin:0 auto;padding:24px;line-height:1.55}
+a{color:#a4c8ff} h1,h2{line-height:1.2} .panel{background:#1c1e22;border:1px solid #36383d;padding:20px;border-radius:12px;margin:16px 0}
+label{display:block;margin:10px 0} input:not([type=checkbox]),button{font:inherit;border:1px solid #61646a;background:#272a30;color:inherit;padding:10px;border-radius:7px}
+input:not([type=checkbox]){box-sizing:border-box;width:100%} button{cursor:pointer;margin:6px 6px 6px 0} button:disabled{opacity:.5;cursor:default} #external-export,#external-import{background:#295eaa} summary{cursor:pointer}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:440px;overflow:auto;background:#101114;padding:12px;border-radius:6px;font-size:13px}
+small{color:#b3b5bc} [hidden]{display:none!important}
+textarea,select{box-sizing:border-box;max-width:100%;font:inherit;background:#272a30;color:inherit;border:1px solid #61646a;border-radius:7px;padding:10px}
+textarea{width:100%;min-height:120px;font:13px ui-monospace,monospace;resize:vertical}
+#external-files{min-height:65px} #external-prompt{min-height:220px}
+.providers a{display:inline-block;margin:4px 12px 4px 0} .version{overflow-wrap:anywhere;font:13px ui-monospace,monospace}
+</style></head>
+<body>
+<a href="/">← Back to chat</a>
+<h1>GitHub issue coding</h1>
+<p>Repository: Yang-128/my-ai-agent. Develop with external web models, then review and test proposed changes locally.</p>
+<div class="panel">
+<label>Local coding session token<input id="token" type="password" autocomplete="off" spellcheck="false"></label>
+<label>Open GitHub issue number<input id="issue" type="number" min="1" max="1000000" inputmode="numeric"></label>
+<button id="external-sessions">Load saved sessions</button>
+<label>Resume checkpoint<select id="checkpoint"><option value="">New coding session</option></select></label>
+<button id="saved-patch" disabled>Download latest saved patch</button>
+<button id="delete-checkpoint" disabled>Delete selected checkpoint</button>
+
+</div>
+<div class="panel" id="external">
+<h2>External web development</h2>
+<p>Work with a free web conversation manually. No provider API keys, desktop app, or automatic browser access required.</p>
+<p><small>Use the issue and checkpoint selector above. Resume the same checkpoint when switching providers. New sessions use this checkout's committed HEAD; external sessions retain their original locally available base commit.</small></p>
+<label>Target web model
+<select id="external-profile">
+<option value="compact">Automatic compact (64 KB)</option>
+<option value="deepseek">DeepSeek (64 KB)</option>
+<option value="small">Extra compact (32 KB)</option>
+<option value="claude">Claude (120 KB)</option>
+<option value="chatgpt">ChatGPT (96 KB)</option>
+<option value="gemini">Gemini (120 KB)</option>
+<option value="kimi">Kimi (96 KB)</option>
+<option value="qwen">Qwen (64 KB)</option>
+<option value="standard">Large package (320 KB)</option>
+</select></label>
+<p><small>These are conservative local package sizes, not verified web context limits. Compact modes automatically select relevant source excerpts and prioritize failing tests. If a web model rejects a prompt, choose Extra compact and regenerate from the same checkpoint.</small></p>
+<label>Work per response
+<select id="external-scope">
+<option value="feature">Complete a feature (recommended)</option>
+<option value="focused">Focused change or repair</option>
+</select></label>
+<label>Optional next milestone (automatic source selection uses this focus)<textarea id="external-focus" maxlength="2000" placeholder="Leave blank to automatically focus on failed checks or continue the issue"></textarea></label>
+<label><input type="checkbox" id="external-manual"> Use manual source selection instead of automatic dependency discovery</label>
+<label>Source paths (one per line; automatic mode displays selected files)<textarea id="external-files" placeholder="Automatically selected from issue, roadmap, imports and checkpoint" readonly></textarea></label>
+<pre id="external-budget"></pre>
+<pre id="external-omitted" hidden></pre>
+<details><summary>Available source paths</summary><pre id="external-available"></pre></details>
+<label><input type="checkbox" id="external-export-approved"> I authorize preparing the selected project source for external sharing. I will review the generated prompt before pasting it into a provider.</label>
+<button id="external-export">Generate latest prompt</button>
+<p class="version" id="external-version"></p>
+<label>Prompt for your web model<textarea id="external-prompt" readonly></textarea></label>
+<button id="external-copy" disabled>Copy prompt</button>
+<p class="providers"><a href="https://claude.ai" target="_blank" rel="noopener noreferrer">Claude</a><a href="https://chat.deepseek.com" target="_blank" rel="noopener noreferrer">DeepSeek</a><a href="https://www.kimi.com" target="_blank" rel="noopener noreferrer">Kimi</a><a href="https://chatgpt.com" target="_blank" rel="noopener noreferrer">ChatGPT</a><a href="https://gemini.google.com" target="_blank" rel="noopener noreferrer">Gemini</a><a href="https://chat.qwen.ai" target="_blank" rel="noopener noreferrer">Qwen</a></p>
+<p><small>Paste the prompt into your chosen web conversation. Return the complete JSON response here. If the provider runs out of quota, generate a new prompt for the same checkpoint and switch providers. A newer export invalidates older responses.</small></p>
+<label>Developer used<input id="external-provider" placeholder="Claude, DeepSeek, Kimi, or another provider" maxlength="60"></label>
+<label>Model's JSON response<textarea id="external-response" placeholder="Paste the complete response here"></textarea></label>
+<label><input type="checkbox" id="external-import-approved"> I approve saving these proposed edits and executing independent checks inside the isolated Docker worker. No changes will be applied to the live repository.</label>
+<button id="external-import">Import edits and test</button>
+<section id="external-roadmap" hidden><h3>Issue roadmap</h3><p id="external-current-task"></p><p id="external-coverage"></p><progress id="external-coverage-bar" max="1" value="0"></progress><details><summary>Requirements and reported evidence</summary><ol id="external-roadmap-items"></ol></details></section>
+<p id="external-status" role="status">Ready. Enter your local session token and issue above.</p>
+<details id="external-details" hidden><summary>Development report and test results</summary><pre id="external-summary"></pre><pre id="external-checks" hidden></pre></details>
+</div>
+
+<div id="review" class="panel" hidden><h2>Review proposed changes</h2><p id="result"></p><p id="commit"></p><details><summary>View full patch</summary><pre id="patch"></pre></details><button id="download">Download patch</button><p><small>Check the original commit, review the diff and run your own tests before applying it. No changes have been applied to the live checkout.</small></p></div>
+<details class="panel" id="api-development"><summary><strong>Advanced: autonomous API development</strong></summary>
+<p><small>Experimental. Free API models may exhaust quota or struggle with complex issues. External web development is the recommended workflow for now. Check account billing before enabling an API run. Default: Gemini 3.5 Flash-Lite.</small></p>
+<button id="discover">Load API models and saved sessions</button>
+<div id="models" hidden>
+<p>Choose up to three models in execution order. Leave all blank to use the existing default.</p>
+<label>First model<select id="model-1"></select></label>
+<label>Fallback model<select id="model-2"></select></label>
+<label>Final fallback model<select id="model-3"></select></label>
+</div>
+<label><input id="approved" type="checkbox"> I authorize sending the selected issue and relevant committed project source to the selected providers, including each chosen fallback, running code in the local isolated Docker worker, and saving private local source checkpoints. I have confirmed the selected accounts' billing/free-tier settings. No patch will be automatically applied or pushed.</label>
+<small>Only selected committed text source is copied. Local edits, credentials and runtime files are excluded by design; inspect committed content for sensitive information before starting. The first version is local-only and caps inference attempts at 32 per model stage, with at most three stages. Public free listings cannot verify your account's billing settings.</small>
+<div><button id="start">Fix or resume issue</button><button id="stop" disabled>Stop</button></div>
+<p id="status" role="status">Ready. Start the dedicated local coding server and build the worker image first.</p>
+<h3>API activity</h3><pre id="activity" aria-live="polite"></pre>
+</details>
+<script src="/static/coding.js"></script>
+</body></html>
